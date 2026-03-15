@@ -1,14 +1,13 @@
 /**
- * ChatPanel Component
+ * ChatPanel Component — Light Theme
  * 
- * Design: "Precision Dark" — Enterprise SaaS
  * Left-side AI chat interface with message bubbles, mode selection cards,
- * and input field. Simulates the O2 AI conversation flow.
+ * and input field. Dark sidebar style for contrast with light main area.
  */
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Wrench, TrendingUp, Check, Sparkles, ArrowRight, ChevronRight } from 'lucide-react';
+import { Send, Wrench, TrendingUp, Check, Sparkles, ChevronRight } from 'lucide-react';
 import { ChatMessage, ProcessingMode, processingModes } from '@/lib/demoData';
 
 interface ChatPanelProps {
@@ -23,11 +22,11 @@ function TypingIndicator() {
   return (
     <div className="flex items-center gap-1 px-3 py-2">
       <div className="flex items-center gap-1">
-        <div className="w-1.5 h-1.5 rounded-full bg-[oklch(0.72_0.15_195)] typing-dot" />
-        <div className="w-1.5 h-1.5 rounded-full bg-[oklch(0.72_0.15_195)] typing-dot" />
-        <div className="w-1.5 h-1.5 rounded-full bg-[oklch(0.72_0.15_195)] typing-dot" />
+        <div className="w-1.5 h-1.5 rounded-full typing-dot" style={{ backgroundColor: '#94a3b8' }} />
+        <div className="w-1.5 h-1.5 rounded-full typing-dot" style={{ backgroundColor: '#94a3b8' }} />
+        <div className="w-1.5 h-1.5 rounded-full typing-dot" style={{ backgroundColor: '#94a3b8' }} />
       </div>
-      <span className="text-[11px] text-[oklch(0.50_0.01_260)] ml-2">O2 AI is analyzing...</span>
+      <span className="text-[11px] ml-2" style={{ color: '#94a3b8' }}>O2 AI is analyzing...</span>
     </div>
   );
 }
@@ -38,24 +37,19 @@ function ModeSelectionCard({ mode, onSelect, selected }: {
   selected: boolean;
 }) {
   const isService = mode.id === 'service';
-  const accentColor = isService ? 'oklch(0.72 0.15 195)' : 'oklch(0.65 0.18 160)';
+  const accentColor = isService ? '#2563eb' : '#059669';
+  const accentLight = isService ? '#dbeafe' : '#d1fae5';
 
   return (
     <motion.button
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
       onClick={() => onSelect(mode)}
-      className={`
-        relative w-full text-left rounded-lg border p-3.5 transition-all duration-200
-        ${selected
-          ? `border-[${accentColor}/0.5] bg-[${accentColor}/0.08]`
-          : 'border-[oklch(1_0_0/0.08)] bg-[oklch(0.15_0.015_260)] hover:border-[oklch(1_0_0/0.15)]'
-        }
-      `}
+      className="relative w-full text-left rounded-lg border p-3.5 transition-all duration-200"
       style={{
-        borderColor: selected ? `${accentColor}` : undefined,
-        backgroundColor: selected ? `color-mix(in oklch, ${accentColor} 8%, oklch(0.15 0.015 260))` : undefined,
-        boxShadow: selected ? `0 0 15px color-mix(in oklch, ${accentColor} 15%, transparent)` : undefined,
+        borderColor: selected ? accentColor : '#334155',
+        backgroundColor: selected ? `${accentColor}12` : '#1e293b',
+        boxShadow: selected ? `0 0 12px ${accentColor}20` : undefined,
       }}
     >
       {/* Selected indicator */}
@@ -66,7 +60,7 @@ function ModeSelectionCard({ mode, onSelect, selected }: {
           className="absolute top-2.5 right-2.5 w-5 h-5 rounded-full flex items-center justify-center"
           style={{ backgroundColor: accentColor }}
         >
-          <Check className="w-3 h-3 text-[oklch(0.13_0.02_260)]" />
+          <Check className="w-3 h-3 text-white" />
         </motion.div>
       )}
 
@@ -74,7 +68,7 @@ function ModeSelectionCard({ mode, onSelect, selected }: {
       <div className="flex items-center gap-2.5 mb-2">
         <div
           className="w-8 h-8 rounded-lg flex items-center justify-center"
-          style={{ backgroundColor: `color-mix(in oklch, ${accentColor} 15%, transparent)` }}
+          style={{ backgroundColor: `${accentColor}20` }}
         >
           {isService
             ? <Wrench className="w-4 h-4" style={{ color: accentColor }} />
@@ -82,24 +76,24 @@ function ModeSelectionCard({ mode, onSelect, selected }: {
           }
         </div>
         <div>
-          <div className="text-sm font-semibold text-[oklch(0.93_0.005_260)] font-display">
+          <div className="text-sm font-semibold font-display" style={{ color: '#f1f5f9' }}>
             {mode.title}
           </div>
-          <div className="text-[10px] text-[oklch(0.55_0.01_260)]">
+          <div className="text-[10px]" style={{ color: '#94a3b8' }}>
             {mode.subtitle}
           </div>
         </div>
       </div>
 
       {/* Description */}
-      <p className="text-[11px] leading-relaxed text-[oklch(0.60_0.015_260)] mb-2.5">
+      <p className="text-[11px] leading-relaxed mb-2.5" style={{ color: '#cbd5e1' }}>
         {mode.description}
       </p>
 
       {/* Benefits */}
       <div className="space-y-1">
         {mode.benefits.map((benefit, i) => (
-          <div key={i} className="flex items-center gap-1.5 text-[10px] text-[oklch(0.55_0.01_260)]">
+          <div key={i} className="flex items-center gap-1.5 text-[10px]" style={{ color: '#94a3b8' }}>
             <ChevronRight className="w-2.5 h-2.5" style={{ color: accentColor }} />
             {benefit}
           </div>
@@ -133,18 +127,24 @@ export default function ChatPanel({
   };
 
   return (
-    <div className="flex flex-col h-full bg-[oklch(0.13_0.02_260)]">
+    <div className="flex flex-col h-full" style={{ backgroundColor: '#0f172a' }}>
       {/* Chat header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-[oklch(1_0_0/0.06)]">
+      <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: '1px solid #1e293b' }}>
         <div className="relative">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[oklch(0.72_0.15_195)] to-[oklch(0.55_0.18_195)] flex items-center justify-center">
-            <Sparkles className="w-4 h-4 text-[oklch(0.13_0.02_260)]" />
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center"
+            style={{ background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)' }}
+          >
+            <Sparkles className="w-4 h-4 text-white" />
           </div>
-          <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[oklch(0.65_0.18_160)] border-2 border-[oklch(0.13_0.02_260)]" />
+          <div
+            className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full"
+            style={{ backgroundColor: '#22c55e', border: '2px solid #0f172a' }}
+          />
         </div>
         <div>
-          <div className="text-sm font-semibold text-[oklch(0.93_0.005_260)] font-display">O2 AI Assistant</div>
-          <div className="text-[10px] text-[oklch(0.50_0.01_260)]">E-Waste Analysis Engine</div>
+          <div className="text-sm font-semibold font-display" style={{ color: '#f1f5f9' }}>O2 AI Assistant</div>
+          <div className="text-[10px]" style={{ color: '#64748b' }}>E-Waste Analysis Engine</div>
         </div>
       </div>
 
@@ -156,11 +156,14 @@ export default function ChatPanel({
           animate={{ opacity: 1, y: 0 }}
           className="text-center py-4"
         >
-          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[oklch(0.72_0.15_195/0.08)] border border-[oklch(0.72_0.15_195/0.15)] mb-3">
-            <Sparkles className="w-3 h-3 text-[oklch(0.72_0.15_195)]" />
-            <span className="text-[10px] font-medium text-[oklch(0.72_0.15_195)]">AI-Powered Analysis</span>
+          <div
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full mb-3"
+            style={{ backgroundColor: '#1e3a5f', border: '1px solid #2563eb30' }}
+          >
+            <Sparkles className="w-3 h-3" style={{ color: '#60a5fa' }} />
+            <span className="text-[10px] font-medium" style={{ color: '#60a5fa' }}>AI-Powered Analysis</span>
           </div>
-          <p className="text-[11px] text-[oklch(0.45_0.01_260)] max-w-[260px] mx-auto leading-relaxed">
+          <p className="text-[11px] max-w-[260px] mx-auto leading-relaxed" style={{ color: '#64748b' }}>
             Enter your recycling requirements to generate a component teardown analysis and topology diagram.
           </p>
         </motion.div>
@@ -177,11 +180,11 @@ export default function ChatPanel({
               {msg.type === 'mode-selection' ? (
                 <div className="w-full space-y-2.5">
                   <div className="flex items-center gap-2 mb-2">
-                    <div className="h-px flex-1 bg-[oklch(1_0_0/0.06)]" />
-                    <span className="text-[10px] font-medium text-[oklch(0.50_0.01_260)] uppercase tracking-wider">
+                    <div className="h-px flex-1" style={{ backgroundColor: '#1e293b' }} />
+                    <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: '#64748b' }}>
                       Choose Processing Mode
                     </span>
-                    <div className="h-px flex-1 bg-[oklch(1_0_0/0.06)]" />
+                    <div className="h-px flex-1" style={{ backgroundColor: '#1e293b' }} />
                   </div>
                   {processingModes.map((mode) => (
                     <ModeSelectionCard
@@ -194,22 +197,19 @@ export default function ChatPanel({
                 </div>
               ) : (
                 <div
-                  className={`
-                    max-w-[85%] rounded-xl px-3.5 py-2.5
-                    ${msg.role === 'user'
-                      ? 'bg-[oklch(0.72_0.15_195)] text-[oklch(0.13_0.02_260)]'
-                      : 'bg-[oklch(0.17_0.015_260)] border border-[oklch(1_0_0/0.06)] text-[oklch(0.85_0.01_260)]'
-                    }
-                  `}
+                  className="max-w-[85%] rounded-xl px-3.5 py-2.5"
+                  style={msg.role === 'user'
+                    ? { backgroundColor: '#2563eb', color: '#ffffff' }
+                    : { backgroundColor: '#1e293b', border: '1px solid #334155', color: '#e2e8f0' }
+                  }
                 >
-                  <div className={`text-[12px] leading-relaxed whitespace-pre-line ${
-                    msg.role === 'user' ? 'font-medium' : ''
-                  }`}>
+                  <div className={`text-[12px] leading-relaxed whitespace-pre-line ${msg.role === 'user' ? 'font-medium' : ''}`}>
                     {msg.content}
                   </div>
-                  <div className={`text-[9px] mt-1.5 ${
-                    msg.role === 'user' ? 'text-[oklch(0.13_0.02_260/0.5)]' : 'text-[oklch(0.45_0.01_260)]'
-                  }`}>
+                  <div
+                    className="text-[9px] mt-1.5"
+                    style={{ color: msg.role === 'user' ? 'rgba(255,255,255,0.5)' : '#64748b' }}
+                  >
                     {msg.role === 'user' ? 'YOU' : 'ASSISTANT'}
                   </div>
                 </div>
@@ -219,10 +219,7 @@ export default function ChatPanel({
         </AnimatePresence>
 
         {isProcessing && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-          >
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             <TypingIndicator />
           </motion.div>
         )}
@@ -240,28 +237,18 @@ export default function ChatPanel({
             onChange={(e) => setInputValue(e.target.value)}
             placeholder="Enter recycling requirements..."
             disabled={isProcessing}
-            className="
-              w-full h-10 pl-4 pr-11 rounded-lg
-              bg-[oklch(0.17_0.015_260)] border border-[oklch(1_0_0/0.08)]
-              text-[12px] text-[oklch(0.90_0.005_260)]
-              placeholder:text-[oklch(0.40_0.01_260)]
-              focus:outline-none focus:border-[oklch(0.72_0.15_195/0.3)]
-              focus:ring-1 focus:ring-[oklch(0.72_0.15_195/0.15)]
-              transition-all duration-200
-              disabled:opacity-50
-            "
+            className="w-full h-10 pl-4 pr-11 rounded-lg text-[12px] transition-all duration-200 disabled:opacity-50 focus:outline-none"
+            style={{
+              backgroundColor: '#1e293b',
+              border: '1px solid #334155',
+              color: '#f1f5f9',
+            }}
           />
           <button
             type="submit"
             disabled={!inputValue.trim() || isProcessing}
-            className="
-              absolute right-1.5 top-1/2 -translate-y-1/2
-              w-7 h-7 rounded-md flex items-center justify-center
-              bg-[oklch(0.72_0.15_195)] text-[oklch(0.13_0.02_260)]
-              hover:bg-[oklch(0.78_0.15_195)]
-              disabled:opacity-30 disabled:hover:bg-[oklch(0.72_0.15_195)]
-              transition-all duration-200
-            "
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-md flex items-center justify-center transition-all duration-200 disabled:opacity-30"
+            style={{ backgroundColor: '#2563eb', color: '#ffffff' }}
           >
             <Send className="w-3.5 h-3.5" />
           </button>
