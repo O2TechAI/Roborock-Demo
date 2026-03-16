@@ -1,562 +1,582 @@
 /**
- * O2 AI Demo - Data Types & Mock Data
+ * O2 AI Demo — Complete Data Model
  * 
- * Two modes with distinct teardown trees:
- * - Service Fee: Raw material recovery only, shows labor/processing costs
- * - Trading: Raw material recovery + 3rd party component resale, shows market values
+ * Based on real Roborock S7 teardown script.
+ * Two modes: Service Fee (raw material only) and Trading (parts resale + raw material).
+ * Teardown tree is shared; financial tables differ by mode.
  */
 
-export interface ChatMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: Date;
-  type?: 'text' | 'mode-selection' | 'processing' | 'complete';
-}
+// ============================================================
+// TYPES
+// ============================================================
+
+export type ModeType = 'service' | 'trading';
+
+export type DisposalStatus = 
+  | 'destroy-brand'      // DESTROY – Brand/IP
+  | 'raw-material'       // RAW MATERIAL
+  | 'raw-material-hazmat' // RAW MATERIAL – Hazmat
+  | 'third-party'        // THIRD-PARTY / TRADABLE
+  | 'non-recyclable';    // NON-RECYCLABLE
 
 export interface TeardownNode {
   id: string;
   label: string;
-  category: 'root' | 'assembly' | 'component' | 'material';
-  weight?: string;
-  value?: string;
-  recyclable?: boolean;
+  labelCn?: string;
+  category: 'root' | 'assembly' | 'subassembly' | 'component';
+  material?: string;
+  weight?: string;        // e.g. "380 g"
+  status: DisposalStatus;
+  sellableValue?: number; // Trading mode only, per unit $
   children?: TeardownNode[];
-  materialType?: string;
-  quantity?: number;
-  /** Disposal path for Trading mode */
-  disposalPath?: 'material-recovery' | '3rd-party-resale' | 'waste';
-  /** Cost label for Service Fee mode */
-  laborCost?: string;
 }
 
-export interface ProcessingMode {
-  id: 'service' | 'trading';
-  title: string;
-  subtitle: string;
+export interface SellablePartRow {
+  component: string;
+  qty: number;
+  unitValue: number;
+  subtotal: number;
+  notes: string;
+  assembly: string;
+}
+
+export interface RawMaterialRow {
+  category: string;
+  material: string;
+  weightKg: number;
+  unitPrice: string;
+  revenue: number;
+}
+
+export interface CostRow {
+  category: string;
+  categoryCn: string;
+  assumption: string;
+  totalCost: number;
+  perUnit: number;
+}
+
+export interface ServiceFeeRow {
+  item: string;
+  perUnit: number;
+  total: number;
+  isPercent?: boolean;
+  percentValue?: string;
+}
+
+export interface DealSummaryRow {
+  item: string;
+  total: number;
+  isNegative?: boolean;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'thinking';
+  content: string;
+  timestamp?: number;
+}
+
+export interface ExampleQuery {
+  product: string;
   description: string;
-  icon: string;
-  benefits: string[];
-  color: string;
+  units: number;
 }
 
-export const processingModes: ProcessingMode[] = [
-  {
-    id: 'service',
-    title: 'Service Fee',
-    subtitle: 'We process, you pay',
-    description: 'You pay us to process your e-waste. We handle disassembly, compliance, and reporting. Recovered raw materials are returned or sold on your behalf.',
-    icon: 'wrench',
-    benefits: [
-      'Full compliance reporting',
-      'Chain-of-custody tracking',
-      'Raw material recovery',
-      'Data destruction guarantee'
-    ],
-    color: 'blue'
-  },
-  {
-    id: 'trading',
-    title: 'Trading',
-    subtitle: 'We buy, you earn',
-    description: 'We buy your e-waste at market rates. We extract value through raw material recycling and reselling usable components to third parties.',
-    icon: 'trending-up',
-    benefits: [
-      'Upfront cash payment',
-      'Market-rate pricing',
-      'No processing costs',
-      'Instant quotation'
-    ],
-    color: 'emerald'
-  }
+// ============================================================
+// EXAMPLE QUERIES
+// ============================================================
+
+export const exampleQueries: ExampleQuery[] = [
+  { product: 'Roborock S7', description: 'Recycle 500 units, robot vacuum teardown', units: 500 },
+  { product: 'iPhone 15 Pro', description: 'Recycle 1000 units, smartphone disassembly', units: 1000 },
+  { product: 'MacBook Pro 14" M3', description: 'Recycle 200 units, laptop teardown', units: 200 },
 ];
 
 // ============================================================
-// SERVICE FEE MODE — Raw Material Recovery Only
-// Tree ends at material level. Shows labor cost per assembly.
+// AI THINKING STEPS (simulated analysis)
 // ============================================================
-export const serviceFeeTreeData: TeardownNode = {
-  id: 'root',
-  label: 'Roborock S7',
-  category: 'root',
-  weight: '3.7 kg',
-  quantity: 500,
-  children: [
-    {
-      id: 'electronics',
-      label: 'Electronics Assembly',
-      category: 'assembly',
-      weight: '0.45 kg',
-      laborCost: '$3.20/unit',
-      children: [
-        {
-          id: 'pcb-gold',
-          label: 'Gold Recovery (PCB)',
-          category: 'material',
-          weight: '0.15 kg',
-          materialType: 'Gold / Palladium',
-          value: '$4.80/unit',
-          recyclable: true,
-        },
-        {
-          id: 'copper-traces',
-          label: 'Copper Recovery',
-          category: 'material',
-          weight: '0.12 kg',
-          materialType: 'Copper',
-          value: '$1.60/unit',
-          recyclable: true,
-        },
-        {
-          id: 'silicon-ic',
-          label: 'Silicon & IC Chips',
-          category: 'material',
-          weight: '0.08 kg',
-          materialType: 'Silicon / Rare Earth',
-          value: '$2.40/unit',
-          recyclable: true,
-        },
-        {
-          id: 'e-waste-residue',
-          label: 'E-Waste Residue',
-          category: 'material',
-          weight: '0.10 kg',
-          materialType: 'Mixed (FR-4, solder)',
-          value: '$0.30/unit',
-          recyclable: false,
-        },
-      ]
-    },
-    {
-      id: 'power',
-      label: 'Power System',
-      category: 'assembly',
-      weight: '0.85 kg',
-      laborCost: '$2.80/unit',
-      children: [
-        {
-          id: 'lithium-cobalt',
-          label: 'Lithium & Cobalt',
-          category: 'material',
-          weight: '0.35 kg',
-          materialType: 'Li / Co / Ni',
-          value: '$4.50/unit',
-          recyclable: true,
-        },
-        {
-          id: 'copper-wiring',
-          label: 'Copper Wiring',
-          category: 'material',
-          weight: '0.20 kg',
-          materialType: 'Copper',
-          value: '$2.10/unit',
-          recyclable: true,
-        },
-        {
-          id: 'battery-casing',
-          label: 'Battery Casing',
-          category: 'material',
-          weight: '0.30 kg',
-          materialType: 'Steel / Aluminum',
-          value: '$0.80/unit',
-          recyclable: true,
-        },
-      ]
-    },
-    {
-      id: 'motors',
-      label: 'Motor Assembly',
-      category: 'assembly',
-      weight: '0.55 kg',
-      laborCost: '$1.90/unit',
-      children: [
-        {
-          id: 'motor-copper',
-          label: 'Copper Windings',
-          category: 'material',
-          weight: '0.25 kg',
-          materialType: 'Copper',
-          value: '$2.80/unit',
-          recyclable: true,
-        },
-        {
-          id: 'neodymium',
-          label: 'Neodymium Magnets',
-          category: 'material',
-          weight: '0.08 kg',
-          materialType: 'Neodymium (NdFeB)',
-          value: '$1.90/unit',
-          recyclable: true,
-        },
-        {
-          id: 'motor-steel',
-          label: 'Steel Components',
-          category: 'material',
-          weight: '0.22 kg',
-          materialType: 'Steel',
-          value: '$0.50/unit',
-          recyclable: true,
-        },
-      ]
-    },
-    {
-      id: 'cleaning',
-      label: 'Cleaning System',
-      category: 'assembly',
-      weight: '0.65 kg',
-      laborCost: '$1.20/unit',
-      children: [
-        {
-          id: 'pp-plastic',
-          label: 'PP Plastic',
-          category: 'material',
-          weight: '0.35 kg',
-          materialType: 'Polypropylene',
-          value: '$0.60/unit',
-          recyclable: true,
-        },
-        {
-          id: 'rubber-waste',
-          label: 'Rubber & Nylon',
-          category: 'material',
-          weight: '0.20 kg',
-          materialType: 'Nylon / Rubber',
-          value: '$0.15/unit',
-          recyclable: false,
-        },
-        {
-          id: 'mixed-clean',
-          label: 'Mixed Metals',
-          category: 'material',
-          weight: '0.10 kg',
-          materialType: 'Copper / Steel',
-          value: '$0.45/unit',
-          recyclable: true,
-        },
-      ]
-    },
-    {
-      id: 'structural',
-      label: 'Structural Parts',
-      category: 'assembly',
-      weight: '1.20 kg',
-      laborCost: '$0.90/unit',
-      children: [
-        {
-          id: 'abs-plastic',
-          label: 'ABS Plastic',
-          category: 'material',
-          weight: '0.45 kg',
-          materialType: 'ABS',
-          value: '$1.20/unit',
-          recyclable: true,
-        },
-        {
-          id: 'pp-structural',
-          label: 'PP Plastic',
-          category: 'material',
-          weight: '0.35 kg',
-          materialType: 'Polypropylene',
-          value: '$0.70/unit',
-          recyclable: true,
-        },
-        {
-          id: 'steel-aluminum',
-          label: 'Steel & Aluminum',
-          category: 'material',
-          weight: '0.25 kg',
-          materialType: 'Steel / Aluminum',
-          value: '$0.70/unit',
-          recyclable: true,
-        },
-        {
-          id: 'rubber-silicone',
-          label: 'Silicone & EPDM',
-          category: 'material',
-          weight: '0.15 kg',
-          materialType: 'Silicone / EPDM',
-          value: '$0.10/unit',
-          recyclable: false,
-        },
-      ]
-    }
-  ]
-};
+
+export const aiThinkingSteps: string[] = [
+  'Identifying product: Roborock S7 Robot Vacuum...',
+  'Loading component database for Roborock S7 (3.7 kg, 7 major assemblies)...',
+  'Analyzing teardown topology: 7 assemblies, 28 sub-components identified...',
+  'Cross-referencing component market prices (Q1 2026 spot rates)...',
+  'Calculating raw material recovery values (Au, Ag, Cu, Li, Steel, ABS)...',
+  'Estimating labor costs: $25/hr, 2 units/hr disassembly rate...',
+  'Computing logistics, compliance, and warehousing overhead...',
+  'Generating teardown topology and financial analysis...',
+];
+
+export const aiAnalysisResult = `**Analysis Complete — Roborock S7 (500 units)**
+
+Product identified as Roborock S7 Robot Vacuum (3.7 kg/unit).
+
+Teardown topology generated with **7 major assemblies** and **28 recoverable components**.
+
+Key findings:
+• 10 components identified as third-party tradable
+• 14 components recoverable as raw materials
+• 3 components require brand destruction (IP compliance)
+• 2 components non-recyclable (HEPA filter, rubber strip)
+
+The teardown flow diagram and financial analysis are now available on the right panel.`;
 
 // ============================================================
-// TRADING MODE — Raw Material Recovery + 3rd Party Resale
-// Some components are sold as-is to third parties (higher value).
-// Others go to material recovery. Shows disposal path on each node.
+// TEARDOWN TREE (shared structure, status differs by mode)
 // ============================================================
-export const tradingTreeData: TeardownNode = {
+
+export const teardownTree: TeardownNode = {
   id: 'root',
   label: 'Roborock S7',
+  labelCn: '整机',
   category: 'root',
-  weight: '3.7 kg',
-  quantity: 500,
+  weight: '3,700 g',
+  status: 'raw-material',
   children: [
     {
-      id: 'electronics',
-      label: 'Electronics Assembly',
+      id: 'top-assembly',
+      label: 'Top Assembly',
+      labelCn: '上部组件',
       category: 'assembly',
-      weight: '0.45 kg',
-      value: '$18.50/unit',
+      status: 'raw-material',
       children: [
         {
-          id: 'main-pcb',
-          label: 'Main PCB',
+          id: 'top-cover',
+          label: 'Top Cover',
+          labelCn: 'ABS/PC 注塑外壳',
           category: 'component',
-          weight: '0.12 kg',
-          value: '$6.80',
-          disposalPath: '3rd-party-resale',
-          materialType: 'FR-4 / Gold-plated',
-          recyclable: true,
+          material: 'ABS/PC Plastic',
+          weight: '380 g',
+          status: 'destroy-brand',
         },
         {
-          id: 'lidar-unit',
-          label: 'LiDAR Sensor Unit',
+          id: 'lidar-housing',
+          label: 'LiDAR Turret Housing',
+          labelCn: 'PC/PMMA 光学塑料罩',
           category: 'component',
-          weight: '0.05 kg',
-          value: '$4.50',
-          disposalPath: '3rd-party-resale',
-          materialType: 'Optical Module',
-          recyclable: true,
+          material: 'PC / PMMA Plastic',
+          weight: '90 g',
+          status: 'raw-material',
         },
         {
-          id: 'wifi-bt-module',
-          label: 'WiFi/BT Module',
-          category: 'component',
-          weight: '0.02 kg',
-          value: '$2.20',
-          disposalPath: '3rd-party-resale',
-          materialType: 'RF Module',
-          recyclable: true,
+          id: 'lidar-module',
+          label: 'LiDAR Module',
+          labelCn: '激光雷达模块',
+          category: 'subassembly',
+          status: 'raw-material',
+          children: [
+            {
+              id: 'lidar-pcb',
+              label: 'LiDAR Control PCB',
+              labelCn: 'STM32 雷达控制板',
+              category: 'component',
+              material: 'High-grade PCB (Cu/Au)',
+              weight: '35 g',
+              status: 'destroy-brand',
+            },
+            {
+              id: 'lidar-motor',
+              label: 'LiDAR Rotation Motor',
+              labelCn: 'Nidec 无铁芯直流电机',
+              category: 'component',
+              material: 'Coreless DC Motor',
+              weight: '15 g',
+              status: 'third-party',
+              sellableValue: 1.20,
+            },
+          ],
         },
-        {
-          id: 'sensor-array',
-          label: 'Sensor Array',
-          category: 'component',
-          weight: '0.06 kg',
-          value: '$2.80',
-          disposalPath: '3rd-party-resale',
-          materialType: 'IR / Cliff Sensors',
-          recyclable: true,
-        },
-        {
-          id: 'e-copper-recovery',
-          label: 'Copper & Solder',
-          category: 'material',
-          weight: '0.20 kg',
-          value: '$2.20',
-          disposalPath: 'material-recovery',
-          materialType: 'Copper / Tin',
-          recyclable: true,
-        },
-      ]
+      ],
     },
     {
-      id: 'power',
-      label: 'Power System',
+      id: 'sensor-system',
+      label: 'Upper Sensor System',
+      labelCn: '上部传感系统',
       category: 'assembly',
-      weight: '0.85 kg',
-      value: '$12.40/unit',
+      status: 'raw-material',
       children: [
         {
-          id: 'battery-pack',
-          label: 'Li-ion Battery Pack',
+          id: 'bumper-switch',
+          label: 'Bumper Micro Switch',
+          labelCn: 'Omron 微动开关',
           category: 'component',
-          weight: '0.55 kg',
-          value: '$7.20',
-          disposalPath: '3rd-party-resale',
-          materialType: '18650 Cells (x6)',
-          recyclable: true,
+          material: 'Omron D2FC-F-type',
+          weight: '5 g',
+          status: 'third-party',
+          sellableValue: 0.40,
+        },
+        {
+          id: 'cliff-sensor',
+          label: 'Cliff / Obstacle Sensor Board',
+          labelCn: 'IR 传感板',
+          category: 'component',
+          material: 'IR Reflective Sensor PCB',
+          weight: '12 g',
+          status: 'third-party',
+          sellableValue: 0.60,
+        },
+        {
+          id: 'sensor-bracket',
+          label: 'Sensor Mounting Bracket',
+          labelCn: 'ABS 注塑支架',
+          category: 'component',
+          material: 'ABS Plastic',
+          weight: '25 g',
+          status: 'raw-material',
+        },
+      ],
+    },
+    {
+      id: 'bottom-assembly',
+      label: 'Bottom Assembly',
+      labelCn: '底部组件',
+      category: 'assembly',
+      status: 'raw-material',
+      children: [
+        {
+          id: 'bottom-chassis',
+          label: 'Bottom Chassis',
+          labelCn: '增强 ABS 结构件',
+          category: 'component',
+          material: 'Glass-filled ABS Plastic',
+          weight: '420 g',
+          status: 'raw-material',
+        },
+        {
+          id: 'metal-brackets',
+          label: 'Metal Brackets & Weights',
+          labelCn: '冲压钢/铝件',
+          category: 'component',
+          material: 'Steel / Aluminum',
+          weight: '180 g',
+          status: 'raw-material',
+        },
+      ],
+    },
+    {
+      id: 'power-system',
+      label: 'Power System',
+      labelCn: '能源系统',
+      category: 'assembly',
+      status: 'raw-material',
+      children: [
+        {
+          id: 'battery-cells',
+          label: 'Battery Cells (18650)',
+          labelCn: 'ATL/Sunwoda 锂电芯',
+          category: 'component',
+          material: 'Li-ion Battery (Ni/Co/Cu)',
+          weight: '240 g',
+          status: 'raw-material-hazmat',
         },
         {
           id: 'bms-board',
-          label: 'BMS Board',
+          label: 'BMS Control Board',
+          labelCn: 'TI 电池管理板',
           category: 'component',
-          weight: '0.05 kg',
-          value: '$1.80',
-          disposalPath: '3rd-party-resale',
-          materialType: 'PCB / IC',
-          recyclable: true,
+          material: 'PCB (Cu)',
+          weight: '18 g',
+          status: 'destroy-brand',
         },
         {
-          id: 'charging-circuit',
-          label: 'Charging Circuit',
+          id: 'battery-harness',
+          label: 'Battery Wiring Harness',
+          labelCn: 'JST 接插件线束',
           category: 'component',
-          weight: '0.08 kg',
-          value: '$1.50',
-          disposalPath: '3rd-party-resale',
-          materialType: 'PCB / Copper',
-          recyclable: true,
+          material: 'Copper Wiring',
+          weight: '20 g',
+          status: 'third-party',
+          sellableValue: 0.50,
         },
         {
-          id: 'power-copper',
-          label: 'Copper Wiring',
-          category: 'material',
-          weight: '0.17 kg',
-          value: '$1.90',
-          disposalPath: 'material-recovery',
-          materialType: 'Copper / PVC',
-          recyclable: true,
+          id: 'battery-enclosure',
+          label: 'Battery Enclosure',
+          labelCn: 'ABS + 薄钢壳',
+          category: 'component',
+          material: 'ABS Plastic + Steel',
+          weight: '65 g',
+          status: 'raw-material',
         },
-      ]
+      ],
     },
     {
-      id: 'motors',
-      label: 'Motor Assembly',
+      id: 'drive-system',
+      label: 'Drive & Motion System',
+      labelCn: '驱动与运动系统',
       category: 'assembly',
-      weight: '0.55 kg',
-      value: '$9.80/unit',
+      status: 'raw-material',
       children: [
-        {
-          id: 'bldc-motor',
-          label: 'BLDC Suction Motor',
-          category: 'component',
-          weight: '0.25 kg',
-          value: '$5.20',
-          disposalPath: '3rd-party-resale',
-          materialType: 'Brushless DC Motor',
-          recyclable: true,
-        },
         {
           id: 'wheel-motors',
           label: 'Wheel Drive Motors (x2)',
+          labelCn: 'Mabuchi RS 直流电机',
           category: 'component',
-          weight: '0.15 kg',
-          value: '$2.40',
-          disposalPath: '3rd-party-resale',
-          materialType: 'DC Motors',
-          recyclable: true,
+          material: 'Mabuchi RS-series DC Motors',
+          weight: '60 g',
+          status: 'third-party',
+          sellableValue: 3.00,
         },
         {
-          id: 'motor-metals',
-          label: 'Copper & Steel Scrap',
-          category: 'material',
-          weight: '0.15 kg',
-          value: '$2.20',
-          disposalPath: 'material-recovery',
-          materialType: 'Copper / Steel',
-          recyclable: true,
+          id: 'wheel-gearbox',
+          label: 'Wheel Gearbox',
+          labelCn: '粉末冶金齿轮箱',
+          category: 'component',
+          material: 'Powder-metal Steel',
+          weight: '45 g',
+          status: 'third-party',
+          sellableValue: 0.80,
         },
-      ]
+        {
+          id: 'main-brush-motor',
+          label: 'Main Brush Motor',
+          labelCn: 'Johnson 直流电机',
+          category: 'component',
+          material: 'Johnson-type DC Motor',
+          weight: '35 g',
+          status: 'third-party',
+          sellableValue: 1.20,
+        },
+        {
+          id: 'drive-shaft',
+          label: 'Drive Shaft',
+          labelCn: '钢轴',
+          category: 'component',
+          material: 'Steel',
+          weight: '40 g',
+          status: 'raw-material',
+        },
+        {
+          id: 'side-brush-motor',
+          label: 'Side Brush Motor',
+          labelCn: 'N20 微型电机',
+          category: 'component',
+          material: 'N20-class Micro DC Motor',
+          weight: '12 g',
+          status: 'third-party',
+          sellableValue: 0.80,
+        },
+        {
+          id: 'side-brush-housing',
+          label: 'Side Brush Housing',
+          labelCn: 'ABS 塑料壳',
+          category: 'component',
+          material: 'ABS Plastic',
+          weight: '30 g',
+          status: 'raw-material',
+        },
+      ],
     },
     {
-      id: 'cleaning',
-      label: 'Cleaning System',
+      id: 'cleaning-system',
+      label: 'Cleaning & Suction System',
+      labelCn: '清洁与吸尘系统',
       category: 'assembly',
-      weight: '0.65 kg',
-      value: '$3.60/unit',
+      status: 'raw-material',
       children: [
         {
-          id: 'sonic-mop',
-          label: 'Sonic Mop Module',
+          id: 'suction-motor',
+          label: 'Suction Fan Motor',
+          labelCn: '高速 BLDC/DC 风机',
           category: 'component',
-          weight: '0.20 kg',
-          value: '$1.80',
-          disposalPath: '3rd-party-resale',
-          materialType: 'Vibration Motor + Pad',
-          recyclable: true,
+          material: 'High-speed BLDC/DC Motor',
+          weight: '55 g',
+          status: 'third-party',
+          sellableValue: 1.50,
         },
         {
-          id: 'water-tank',
-          label: 'Water Tank (PP)',
-          category: 'material',
-          weight: '0.25 kg',
-          value: '$0.80',
-          disposalPath: 'material-recovery',
-          materialType: 'Polypropylene',
-          recyclable: true,
+          id: 'roller-shaft',
+          label: 'Roller Shaft',
+          labelCn: '钢轴',
+          category: 'component',
+          material: 'Steel',
+          weight: '45 g',
+          status: 'raw-material',
         },
         {
-          id: 'brush-waste',
-          label: 'Brush Assembly',
-          category: 'material',
-          weight: '0.20 kg',
-          value: '$0.20',
-          disposalPath: 'waste',
-          materialType: 'Nylon / Rubber',
-          recyclable: false,
+          id: 'rubber-brush',
+          label: 'Rubber Brush Strip',
+          labelCn: 'TPE/橡胶刷条',
+          category: 'component',
+          material: 'TPE / Rubber Composite',
+          weight: '35 g',
+          status: 'non-recyclable',
         },
         {
-          id: 'clean-metals',
-          label: 'Mixed Metals',
-          category: 'material',
-          weight: '0.10 kg',
-          value: '$0.80',
-          disposalPath: 'material-recovery',
-          materialType: 'Copper / Steel',
-          recyclable: true,
+          id: 'brush-frame',
+          label: 'Brush Frame',
+          labelCn: 'ABS 塑料框架',
+          category: 'component',
+          material: 'ABS Plastic',
+          weight: '65 g',
+          status: 'raw-material',
         },
-      ]
+        {
+          id: 'dust-bin',
+          label: 'Dust Bin',
+          labelCn: '透明 PC 塑料尘盒',
+          category: 'component',
+          material: 'PC Plastic',
+          weight: '120 g',
+          status: 'raw-material',
+        },
+        {
+          id: 'hepa-filter',
+          label: 'HEPA Filter',
+          labelCn: '玻璃纤维滤芯',
+          category: 'component',
+          material: 'Glass-fiber Filter Media',
+          weight: '15 g',
+          status: 'non-recyclable',
+        },
+      ],
     },
     {
-      id: 'structural',
-      label: 'Structural Parts',
+      id: 'control-electronics',
+      label: 'Control & Electronics',
+      labelCn: '主控与电子系统',
       category: 'assembly',
-      weight: '1.20 kg',
-      value: '$3.10/unit',
+      status: 'raw-material',
       children: [
         {
-          id: 'abs-housing',
-          label: 'ABS Plastic',
-          category: 'material',
-          weight: '0.45 kg',
-          value: '$1.20',
-          disposalPath: 'material-recovery',
-          materialType: 'ABS',
-          recyclable: true,
+          id: 'main-pcb',
+          label: 'Main Control Board',
+          labelCn: 'Qualcomm/Rockchip 主控板',
+          category: 'component',
+          material: 'High-grade PCB (Cu/Au)',
+          weight: '55 g',
+          status: 'destroy-brand',
         },
         {
-          id: 'pp-plate',
-          label: 'PP Plastic',
-          category: 'material',
-          weight: '0.35 kg',
-          value: '$0.90',
-          disposalPath: 'material-recovery',
-          materialType: 'Polypropylene',
-          recyclable: true,
+          id: 'internal-wiring',
+          label: 'Internal Wiring',
+          labelCn: 'PVC 包覆铜线',
+          category: 'component',
+          material: 'PVC-insulated Copper Wiring',
+          weight: '40 g',
+          status: 'third-party',
+          sellableValue: 0.60,
         },
-        {
-          id: 'metal-frame',
-          label: 'Metal Frame',
-          category: 'material',
-          weight: '0.25 kg',
-          value: '$0.70',
-          disposalPath: 'material-recovery',
-          materialType: 'Steel / Aluminum',
-          recyclable: true,
-        },
-        {
-          id: 'rubber-parts',
-          label: 'Rubber Components',
-          category: 'material',
-          weight: '0.15 kg',
-          value: '$0.10',
-          disposalPath: 'waste',
-          materialType: 'Silicone / EPDM',
-          recyclable: false,
-        },
-      ]
-    }
-  ]
+      ],
+    },
+  ],
 };
 
-export const serviceFeeSummary = {
-  totalUnits: 500,
-  totalWeight: '1,850 kg',
-  components: 17,
-  recoveryRate: '91.8%',
-  totalLaborCost: '$5,000',
-  materialValue: '$11,350',
-};
+// ============================================================
+// TRADING MODE — Sellable Parts Revenue
+// ============================================================
 
-export const tradingSummary = {
-  totalUnits: 500,
-  totalWeight: '1,850 kg',
-  components: 22,
-  recoveryRate: '94.2%',
-  buyoutPrice: '$16,500',
-  resaleValue: '$23,700',
-};
+export const tradingSellableParts: SellablePartRow[] = [
+  { component: 'Coreless DC Motor (Nidec)', qty: 1, unitValue: 1.20, subtotal: 1.20, notes: 'Coreless DC motor', assembly: 'LiDAR Module' },
+  { component: 'Omron D2FC-F-type Micro Switch', qty: 1, unitValue: 0.40, subtotal: 0.40, notes: 'Omron-class', assembly: 'Upper Sensor System' },
+  { component: 'IR Reflective Sensor PCB', qty: 1, unitValue: 0.60, subtotal: 0.60, notes: 'Sharp/Everlight', assembly: 'Upper Sensor System' },
+  { component: 'JST Copper Wiring Harness', qty: 1, unitValue: 0.50, subtotal: 0.50, notes: 'JST-type', assembly: 'Power System' },
+  { component: 'Mabuchi RS-series DC Motors x2', qty: 2, unitValue: 1.50, subtotal: 3.00, notes: 'Mabuchi RS-series', assembly: 'Drive & Motion System' },
+  { component: 'Powder-metal Steel Gearbox', qty: 1, unitValue: 0.80, subtotal: 0.80, notes: 'Powder metal', assembly: 'Drive & Motion System' },
+  { component: 'Johnson-type DC Motor', qty: 1, unitValue: 1.20, subtotal: 1.20, notes: 'Johnson-type', assembly: 'Drive & Motion System' },
+  { component: 'N20-class Micro DC Motor', qty: 1, unitValue: 0.80, subtotal: 0.80, notes: 'N20-class', assembly: 'Drive & Motion System' },
+  { component: 'High-speed BLDC/DC Fan Motor', qty: 1, unitValue: 1.50, subtotal: 1.50, notes: 'Generic BLDC/DC', assembly: 'Cleaning & Suction System' },
+  { component: 'PVC-insulated Copper Wiring Set', qty: 1, unitValue: 0.60, subtotal: 0.60, notes: 'Scrap-grade', assembly: 'Control & Electronics' },
+];
+
+export const tradingSellablePartsTotal = 10.60;
+export const tradingSellablePartsBatch = 5300.00; // 10.60 * 500
+
+// ============================================================
+// RAW MATERIAL RECOVERY (shared, same for both modes)
+// ============================================================
+
+export const rawMaterialRecovery: RawMaterialRow[] = [
+  { category: 'Plastics', material: 'ABS / Glass-filled ABS', weightKg: 0.965, unitPrice: '$0.35/kg', revenue: 0.34 },
+  { category: 'Plastics', material: 'PC / PMMA', weightKg: 0.210, unitPrice: '$0.60/kg', revenue: 0.13 },
+  { category: 'Structural Metals', material: 'Steel', weightKg: 0.285, unitPrice: '$0.20/kg', revenue: 0.06 },
+  { category: 'Structural Metals', material: 'Aluminum', weightKg: 0.040, unitPrice: '$1.80/kg', revenue: 0.07 },
+  { category: 'Battery Materials', material: 'Li-ion Battery (Ni/Co/Cu)', weightKg: 0.240, unitPrice: '$2.20/kg', revenue: 0.53 },
+  { category: 'PCB Metals', material: 'Gold (Au)', weightKg: 0.0000216, unitPrice: '$70/g', revenue: 1.51 },
+  { category: 'PCB Metals', material: 'Silver (Ag)', weightKg: 0.000086, unitPrice: '$0.80/g', revenue: 0.07 },
+  { category: 'PCB Metals', material: 'Copper (Cu)', weightKg: 0.0216, unitPrice: '$9.00/kg', revenue: 0.19 },
+];
+
+export const rawMaterialTotal = 2.90;
+export const rawMaterialBatch = 1450.00; // 2.90 * 500
+
+// ============================================================
+// TRADING MODE — Total Recovery
+// ============================================================
+
+export const tradingTotalRecovery = [
+  { source: 'Sellable Parts', value: 10.60 },
+  { source: 'Raw Materials', value: 2.90 },
+];
+export const tradingTotalRecoverablePerUnit = 13.50;
+export const tradingTotalRecoverableBatch = 6750.00;
+
+// ============================================================
+// COST BREAKDOWN (shared base, but service fee mode adds margin)
+// ============================================================
+
+export const costBreakdown: CostRow[] = [
+  { category: 'Human / Labor', categoryCn: '人工', assumption: '250 labor-hours x $25', totalCost: 6250, perUnit: 12.50 },
+  { category: 'Logistics', categoryCn: '物流', assumption: '$3.00 x 500 units', totalCost: 1500, perUnit: 3.00 },
+  { category: 'Compliance', categoryCn: '合规', assumption: '$2.00 x 500 units', totalCost: 1000, perUnit: 2.00 },
+  { category: 'Warehouse Ops', categoryCn: '仓储作业', assumption: '$2.50 x 500 units', totalCost: 1250, perUnit: 2.50 },
+];
+
+export const totalCostPerUnit = 20.00;
+export const totalCostBatch = 10000;
+
+// ============================================================
+// SERVICE FEE MODE — Proposed Service Fee
+// ============================================================
+
+export const serviceFeeProposal: ServiceFeeRow[] = [
+  { item: 'Direct Service Cost', perUnit: 20.00, total: 10000 },
+  { item: 'Gross Profit Target', perUnit: 20.00, total: 10000 },
+  { item: 'Gross Margin Target', perUnit: 0, total: 0, isPercent: true, percentValue: '50%' },
+  { item: 'Total Other Costs', perUnit: -6.00, total: -3000 },
+  { item: 'Net Profit Target', perUnit: 14.00, total: 7000 },
+  { item: 'Net Margin Target', perUnit: 0, total: 0, isPercent: true, percentValue: '35%' },
+  { item: 'Proposed Service Fee', perUnit: 40.00, total: 20000 },
+];
+
+// ============================================================
+// DEAL SUMMARIES
+// ============================================================
+
+export const serviceFeeDealSummary: DealSummaryRow[] = [
+  { item: 'Revenue from Service Fee', total: 20000 },
+  { item: 'Revenue from Robots (Recovered Assets)', total: 6750 },
+  { item: 'Total Revenue', total: 26750 },
+  { item: 'Total Cost', total: -13000, isNegative: true },
+  { item: 'Total Profit', total: 13750 },
+];
+
+export const tradingDealSummary: DealSummaryRow[] = [
+  { item: 'Revenue from Sellable Parts', total: 5300 },
+  { item: 'Revenue from Raw Materials', total: 1450 },
+  { item: 'Total Revenue', total: 6750 },
+  { item: 'Total Cost', total: -10000, isNegative: true },
+  { item: 'Buyout Price to Client', total: -3500, isNegative: true },
+  { item: 'Net Position', total: -6750 },
+];
+
+// Note: Trading mode the buyout price is negotiated. 
+// In this demo, we show O2 offers $7/unit ($3,500 total) to buy the 500 units.
+// Revenue from parts ($5,300) + materials ($1,450) = $6,750
+// Costs = $10,000 + $3,500 buyout = $13,500
+// Net = $6,750 - $13,500 = -$6,750 (loss at this scale — demonstrates why trading mode 
+// requires higher volume or higher-value products)
+
+// ============================================================
+// QUOTATION GENERATION STEPS
+// ============================================================
+
+export const quotationSteps = [
+  { label: 'Validating component database...', progress: 12 },
+  { label: 'Calculating material spot prices (Q1 2026)...', progress: 28 },
+  { label: 'Estimating labor & logistics...', progress: 45 },
+  { label: 'Running compliance checks...', progress: 62 },
+  { label: 'Computing profit margins...', progress: 78 },
+  { label: 'Generating final quotation...', progress: 92 },
+  { label: 'Quotation ready', progress: 100 },
+];
