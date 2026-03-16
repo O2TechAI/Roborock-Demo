@@ -2,24 +2,22 @@
  * QuotationGenerator — Generates a quotation with animated progress bar
  * 
  * Shows step-by-step processing, then a final quotation summary.
+ * Supports both hardcoded default data (Roborock S7) and dynamic AI analysis data.
  */
 
-import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { motion } from 'framer-motion';
 import { ArrowLeft, FileText, Loader2, CheckCircle2, Download, Printer } from 'lucide-react';
-import {
-  ModeType, quotationSteps,
-  tradingSellablePartsTotal, tradingSellablePartsBatch,
-  rawMaterialTotal, rawMaterialBatch,
-  totalCostBatch, totalCostPerUnit,
-} from '@/lib/demoData';
+import { ModeType, quotationSteps } from '@/lib/demoData';
+import type { AnalysisResult } from '@shared/analysisTypes';
 
 interface QuotationGeneratorProps {
   mode: ModeType;
   onBack: () => void;
+  analysisData?: AnalysisResult;
 }
 
-export default function QuotationGenerator({ mode, onBack }: QuotationGeneratorProps) {
+export default function QuotationGenerator({ mode, onBack, analysisData }: QuotationGeneratorProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -41,12 +39,62 @@ export default function QuotationGenerator({ mode, onBack }: QuotationGeneratorP
   const progress = quotationSteps[currentStep]?.progress ?? 0;
   const stepLabel = quotationSteps[currentStep]?.label ?? '';
   const accentColor = mode === 'service' ? '#2563eb' : '#059669';
-
-  // Quotation data
   const isService = mode === 'service';
-  const totalRevenue = isService ? 26750 : 6750;
-  const totalCost = isService ? 13000 : 13500;
-  const netProfit = totalRevenue - totalCost;
+
+  // Derive quotation data from analysisData or defaults
+  const qData = useMemo(() => {
+    if (!analysisData) {
+      // Default Roborock S7 data
+      return {
+        product: 'Roborock S7 Robot Vacuum',
+        units: 500,
+        totalWeight: '1,850 kg',
+        recoveryRate: '94.2%',
+        sellableRevenue: 5300,
+        rawMaterialRevenue: 1450,
+        totalRevenueTrd: 6750,
+        totalRevenueSvc: 26750,
+        totalCost: 13000,
+        totalCostTrd: 13500,
+        buyoutPrice: 3500,
+        serviceFee: 20000,
+        serviceFeePerUnit: 40,
+        buyoutPerUnit: 7,
+      };
+    }
+
+    const sellableRev = analysisData.tradingSellablePartsBatch;
+    const rawRev = analysisData.rawMaterialBatch;
+    const totalCost = analysisData.totalCostBatch;
+    const totalRevenueTrd = sellableRev + rawRev;
+    
+    // Service fee = cost * 1.5 + some margin (aim for ~35% profit margin)
+    const serviceFee = Math.round(totalCost * 1.55 / 100) * 100;
+    const totalRevenueSvc = serviceFee + rawRev;
+    
+    // Buyout price = total recoverable - cost - margin (or a reasonable fraction)
+    const buyoutPrice = Math.max(0, Math.round((totalRevenueTrd - totalCost) * 0.4 / 100) * 100);
+
+    return {
+      product: analysisData.product,
+      units: analysisData.units,
+      totalWeight: analysisData.totalWeight,
+      recoveryRate: analysisData.recoveryRate,
+      sellableRevenue: sellableRev,
+      rawMaterialRevenue: rawRev,
+      totalRevenueTrd,
+      totalRevenueSvc,
+      totalCost,
+      totalCostTrd: totalCost + buyoutPrice,
+      buyoutPrice,
+      serviceFee,
+      serviceFeePerUnit: Math.round(serviceFee / analysisData.units * 100) / 100,
+      buyoutPerUnit: Math.round(buyoutPrice / analysisData.units * 100) / 100,
+    };
+  }, [analysisData]);
+
+  const netProfitSvc = qData.totalRevenueSvc - qData.totalCost;
+  const netPositionTrd = qData.totalRevenueTrd - qData.totalCostTrd;
 
   return (
     <div className="h-full flex flex-col" style={{ backgroundColor: '#ffffff' }}>
@@ -65,7 +113,7 @@ export default function QuotationGenerator({ mode, onBack }: QuotationGeneratorP
           Quotation Generator
         </span>
         <span className="text-[11px]" style={{ color: '#94a3b8' }}>
-          / Roborock S7 - 500 Units
+          / {qData.product} - {qData.units.toLocaleString()} Units
         </span>
       </div>
 
@@ -117,7 +165,7 @@ export default function QuotationGenerator({ mode, onBack }: QuotationGeneratorP
                   Quotation Generated
                 </h3>
                 <p className="text-[11px] mt-1" style={{ color: '#94a3b8' }}>
-                  {isService ? 'Service Fee Mode' : 'Trading Mode'} — Roborock S7 x 500 Units
+                  {isService ? 'Service Fee Mode' : 'Trading Mode'} — {qData.product} x {qData.units.toLocaleString()} Units
                 </p>
               </div>
 
@@ -131,7 +179,7 @@ export default function QuotationGenerator({ mode, onBack }: QuotationGeneratorP
                     </span>
                   </div>
                   <div className="text-[10px] text-white/70 mt-0.5">
-                    QT-2026-{isService ? 'SVC' : 'TRD'}-00147 | Generated {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    QT-2026-{isService ? 'SVC' : 'TRD'}-{String(Math.floor(Math.random() * 900 + 100)).padStart(5, '0')} | Generated {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </div>
                 </div>
 
@@ -140,11 +188,11 @@ export default function QuotationGenerator({ mode, onBack }: QuotationGeneratorP
                   <div className="grid grid-cols-2 gap-3 text-[11px]">
                     <div>
                       <div style={{ color: '#94a3b8' }}>Product</div>
-                      <div className="font-medium" style={{ color: '#1e293b' }}>Roborock S7 Robot Vacuum</div>
+                      <div className="font-medium" style={{ color: '#1e293b' }}>{qData.product}</div>
                     </div>
                     <div>
                       <div style={{ color: '#94a3b8' }}>Quantity</div>
-                      <div className="font-medium" style={{ color: '#1e293b' }}>500 units (1,850 kg)</div>
+                      <div className="font-medium" style={{ color: '#1e293b' }}>{qData.units.toLocaleString()} units ({qData.totalWeight})</div>
                     </div>
                     <div>
                       <div style={{ color: '#94a3b8' }}>Processing Mode</div>
@@ -152,7 +200,7 @@ export default function QuotationGenerator({ mode, onBack }: QuotationGeneratorP
                     </div>
                     <div>
                       <div style={{ color: '#94a3b8' }}>Recovery Rate</div>
-                      <div className="font-medium" style={{ color: '#1e293b' }}>94.2%</div>
+                      <div className="font-medium" style={{ color: '#1e293b' }}>{qData.recoveryRate}</div>
                     </div>
                   </div>
 
@@ -162,22 +210,27 @@ export default function QuotationGenerator({ mode, onBack }: QuotationGeneratorP
                   <div className="space-y-2">
                     {isService ? (
                       <>
-                        <Row label="Revenue from Service Fee" value="$20,000.00" />
-                        <Row label="Revenue from Robots (Recovered Assets)" value="$6,750.00" />
-                        <Row label="Total Revenue" value={`$${totalRevenue.toLocaleString()}.00`} bold />
-                        <Row label="Total Cost" value={`($${totalCost.toLocaleString()}.00)`} negative />
+                        <Row label="Revenue from Service Fee" value={fmt(qData.serviceFee)} />
+                        <Row label="Revenue from Recovered Assets" value={fmt(qData.rawMaterialRevenue)} />
+                        <Row label="Total Revenue" value={fmt(qData.totalRevenueSvc)} bold />
+                        <Row label="Total Cost" value={`(${fmt(qData.totalCost)})`} negative />
                         <div className="h-px my-1" style={{ backgroundColor: '#e2e8f0' }} />
-                        <Row label="Total Profit" value={`$${netProfit.toLocaleString()}.00`} bold accent={accentColor} />
+                        <Row label="Total Profit" value={fmt(netProfitSvc)} bold accent={netProfitSvc >= 0 ? accentColor : '#dc2626'} />
                       </>
                     ) : (
                       <>
-                        <Row label="Revenue from Sellable Parts" value="$5,300.00" />
-                        <Row label="Revenue from Raw Materials" value="$1,450.00" />
-                        <Row label="Total Revenue" value={`$${totalRevenue.toLocaleString()}.00`} bold />
-                        <Row label="Total Processing Cost" value="($10,000.00)" negative />
-                        <Row label="Buyout Price to Client" value="($3,500.00)" negative />
+                        <Row label="Revenue from Sellable Parts" value={fmt(qData.sellableRevenue)} />
+                        <Row label="Revenue from Raw Materials" value={fmt(qData.rawMaterialRevenue)} />
+                        <Row label="Total Revenue" value={fmt(qData.totalRevenueTrd)} bold />
+                        <Row label="Total Processing Cost" value={`(${fmt(qData.totalCost)})`} negative />
+                        <Row label="Buyout Price to Client" value={`(${fmt(qData.buyoutPrice)})`} negative />
                         <div className="h-px my-1" style={{ backgroundColor: '#e2e8f0' }} />
-                        <Row label="Net Position" value={`-$${Math.abs(netProfit).toLocaleString()}.00`} bold accent="#dc2626" />
+                        <Row
+                          label="Net Position"
+                          value={`${netPositionTrd < 0 ? '-' : ''}${fmt(Math.abs(netPositionTrd))}`}
+                          bold
+                          accent={netPositionTrd >= 0 ? accentColor : '#dc2626'}
+                        />
                       </>
                     )}
                   </div>
@@ -188,10 +241,10 @@ export default function QuotationGenerator({ mode, onBack }: QuotationGeneratorP
                       {isService ? 'Proposed Service Fee to Client' : 'Proposed Buyout Price to Client'}
                     </div>
                     <div className="text-[22px] font-bold font-mono" style={{ color: accentColor, fontFamily: "'Space Grotesk', system-ui" }}>
-                      {isService ? '$20,000.00' : '$3,500.00'}
+                      {isService ? fmt(qData.serviceFee) : fmt(qData.buyoutPrice)}
                     </div>
                     <div className="text-[10px] mt-0.5" style={{ color: '#94a3b8' }}>
-                      {isService ? '$40.00 per unit' : '$7.00 per unit'}
+                      {isService ? `$${qData.serviceFeePerUnit.toFixed(2)} per unit` : `$${qData.buyoutPerUnit.toFixed(2)} per unit`}
                     </div>
                   </div>
                 </div>
@@ -219,6 +272,10 @@ export default function QuotationGenerator({ mode, onBack }: QuotationGeneratorP
       </div>
     </div>
   );
+}
+
+function fmt(val: number): string {
+  return `$${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function Row({ label, value, bold, negative, accent }: {

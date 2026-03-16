@@ -3,26 +3,69 @@
  * 
  * Full flow:
  * 1. Start: Mode toggle at top of chat, example queries below
- * 2. Click example → AI starts processing with thinking steps
- * 3. After processing → right panel shows Flow Diagram / Parts Revenue tabs
+ * 2. Click example or type product → calls real AI API for teardown analysis
+ * 3. After AI response → right panel shows Flow Diagram / Parts Revenue tabs
  * 4. Can switch modes at any time via top toggle
  * 5. Generate Quotation button → progress bar → final quotation
+ * 
+ * For Roborock S7 with 500 units, uses hardcoded data for instant demo.
+ * For any other product, calls the AI analysis endpoint.
  */
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ModeType, ChatMessage, ExampleQuery,
-  teardownTree, aiThinkingSteps, aiAnalysisResult,
+  ModeType, ChatMessage, ExampleQuery, TeardownNode,
+  teardownTree as defaultTeardownTree,
+  aiThinkingSteps, aiAnalysisResult,
+  tradingSellableParts as defaultSellableParts,
+  tradingSellablePartsTotal as defaultSellableTotal,
+  tradingSellablePartsBatch as defaultSellableBatch,
+  rawMaterialRecovery as defaultRawMaterials,
+  rawMaterialTotal as defaultRawTotal,
+  rawMaterialBatch as defaultRawBatch,
+  costBreakdown as defaultCostBreakdown,
+  totalCostPerUnit as defaultCostPerUnit,
+  totalCostBatch as defaultCostBatch,
+  serviceFeeDealSummary as defaultServiceDeal,
+  tradingDealSummary as defaultTradingDeal,
 } from '@/lib/demoData';
+import type { AnalysisResult } from '@shared/analysisTypes';
 import ChatPanel from '@/components/ChatPanel';
 import TeardownTree from '@/components/TeardownTree';
 import PartsRevenue from '@/components/PartsRevenue';
 import QuotationGenerator from '@/components/QuotationGenerator';
+import { trpc } from '@/lib/trpc';
 import { FileText, Workflow, Table2, Layers, TrendingUp, Sparkles } from 'lucide-react';
 
 type RightPanelView = 'empty' | 'analysis' | 'quotation';
 type RightTab = 'flow' | 'revenue';
+
+// Parse user input to extract product name and units
+function parseUserInput(text: string): { product: string; units: number } {
+  // Try to extract units from text like "Recycle 500 iPhone 15 Pro units"
+  const unitsMatch = text.match(/(\d+)\s*(units?|pcs?|pieces?)/i);
+  const units = unitsMatch ? parseInt(unitsMatch[1], 10) : 500;
+
+  // Try to extract product name
+  let product = text
+    .replace(/recycle\s*/i, '')
+    .replace(/\d+\s*(units?|pcs?|pieces?)/i, '')
+    .replace(/teardown\s*/i, '')
+    .replace(/disassembl[ey]\s*/i, '')
+    .replace(/analyze\s*/i, '')
+    .replace(/analysis\s*/i, '')
+    .trim();
+
+  if (!product) product = text.trim();
+  return { product, units: Math.max(1, Math.min(100000, units)) };
+}
+
+// Check if the query is for the default Roborock S7 demo
+function isRoborockDemo(product: string, units: number): boolean {
+  const normalized = product.toLowerCase().replace(/[^a-z0-9]/g, '');
+  return normalized.includes('roborocks7') && units === 500;
+}
 
 export default function Home() {
   // State
@@ -34,11 +77,20 @@ export default function Home() {
   const [rightTab, setRightTab] = useState<RightTab>('flow');
   const [analysisComplete, setAnalysisComplete] = useState(false);
   const thinkingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const thinkingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // AI analysis result state
+  const [currentAnalysis, setCurrentAnalysis] = useState<AnalysisResult | null>(null);
+  const [isUsingDefault, setIsUsingDefault] = useState(false);
+
+  // tRPC mutation for AI analysis
+  const analyzeMutation = trpc.analysis.analyze.useMutation();
 
   // Cleanup timers
   useEffect(() => {
     return () => {
       if (thinkingTimerRef.current) clearTimeout(thinkingTimerRef.current);
+      if (thinkingIntervalRef.current) clearInterval(thinkingIntervalRef.current);
     };
   }, []);
 
@@ -47,11 +99,13 @@ export default function Home() {
     setMessages(prev => [...prev, msg]);
   }, []);
 
-  // Run AI thinking animation
-  const runThinkingSequence = useCallback(() => {
+  // Run the default Roborock S7 thinking animation (hardcoded data)
+  const runDefaultThinkingSequence = useCallback(() => {
     setIsProcessing(true);
     setAnalysisComplete(false);
     setRightView('empty');
+    setIsUsingDefault(true);
+    setCurrentAnalysis(null);
     let step = 0;
 
     const processStep = () => {
@@ -61,7 +115,6 @@ export default function Home() {
           role: 'thinking',
           content: aiThinkingSteps[step],
         };
-        // Replace previous thinking message
         setMessages(prev => {
           const filtered = prev.filter(m => m.role !== 'thinking');
           return [...filtered, thinkingMsg];
@@ -69,7 +122,6 @@ export default function Home() {
         step++;
         thinkingTimerRef.current = setTimeout(processStep, 600 + Math.random() * 400);
       } else {
-        // Remove thinking message, add final result
         setMessages(prev => {
           const filtered = prev.filter(m => m.role !== 'thinking');
           return [...filtered, {
@@ -87,6 +139,84 @@ export default function Home() {
     thinkingTimerRef.current = setTimeout(processStep, 500);
   }, []);
 
+  // Run real AI analysis via tRPC
+  const runAIAnalysis = useCallback(async (product: string, units: number) => {
+    setIsProcessing(true);
+    setAnalysisComplete(false);
+    setRightView('empty');
+    setIsUsingDefault(false);
+    setCurrentAnalysis(null);
+
+    // Show animated thinking steps
+    const thinkingSteps = [
+      `Identifying product: ${product}...`,
+      `Researching ${product} component database...`,
+      `Analyzing teardown topology and material composition...`,
+      `Cross-referencing component market prices (Q1 2026 spot rates)...`,
+      `Calculating raw material recovery values...`,
+      `Estimating labor costs and logistics overhead...`,
+      `Computing financial analysis for ${units} units...`,
+      `Generating teardown topology and financial analysis...`,
+    ];
+
+    let step = 0;
+    thinkingIntervalRef.current = setInterval(() => {
+      if (step < thinkingSteps.length) {
+        const thinkingMsg: ChatMessage = {
+          id: `thinking-${step}-${Date.now()}`,
+          role: 'thinking',
+          content: thinkingSteps[step],
+        };
+        setMessages(prev => {
+          const filtered = prev.filter(m => m.role !== 'thinking');
+          return [...filtered, thinkingMsg];
+        });
+        step++;
+      }
+    }, 2500);
+
+    try {
+      const result = await analyzeMutation.mutateAsync({ product, units });
+
+      // Clear thinking interval
+      if (thinkingIntervalRef.current) {
+        clearInterval(thinkingIntervalRef.current);
+        thinkingIntervalRef.current = null;
+      }
+
+      if (result.success && result.data) {
+        setCurrentAnalysis(result.data);
+        setMessages(prev => {
+          const filtered = prev.filter(m => m.role !== 'thinking');
+          return [...filtered, {
+            id: `result-${Date.now()}`,
+            role: 'assistant' as const,
+            content: result.data.summary,
+          }];
+        });
+        setAnalysisComplete(true);
+        setRightView('analysis');
+      }
+    } catch (error: any) {
+      // Clear thinking interval
+      if (thinkingIntervalRef.current) {
+        clearInterval(thinkingIntervalRef.current);
+        thinkingIntervalRef.current = null;
+      }
+
+      setMessages(prev => {
+        const filtered = prev.filter(m => m.role !== 'thinking');
+        return [...filtered, {
+          id: `error-${Date.now()}`,
+          role: 'assistant' as const,
+          content: `**Analysis Error**\n\nI encountered an issue analyzing "${product}". ${error.message || 'Please try again.'}\n\nYou can try:\n• Rephrasing the product name\n• Using a more specific product model\n• Trying one of the example queries`,
+        }];
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [analyzeMutation]);
+
   // Handle example query click
   const handleSelectExample = useCallback((query: ExampleQuery) => {
     if (isProcessing) return;
@@ -96,7 +226,6 @@ export default function Home() {
     setAnalysisComplete(false);
     setRightTab('flow');
 
-    // Add user message
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
       role: 'user',
@@ -104,9 +233,13 @@ export default function Home() {
     };
     addMessage(userMsg);
 
-    // Start AI thinking
-    setTimeout(() => runThinkingSequence(), 300);
-  }, [isProcessing, addMessage, runThinkingSequence]);
+    // Use default data for Roborock S7 500 units, AI for everything else
+    if (isRoborockDemo(query.product, query.units)) {
+      setTimeout(() => runDefaultThinkingSequence(), 300);
+    } else {
+      setTimeout(() => runAIAnalysis(query.product, query.units), 300);
+    }
+  }, [isProcessing, addMessage, runDefaultThinkingSequence, runAIAnalysis]);
 
   // Handle free text message
   const handleSendMessage = useCallback((text: string) => {
@@ -124,13 +257,18 @@ export default function Home() {
     };
     addMessage(userMsg);
 
-    setTimeout(() => runThinkingSequence(), 300);
-  }, [isProcessing, addMessage, runThinkingSequence]);
+    const { product, units } = parseUserInput(text);
 
-  // Handle mode change — keep analysis but switch data
+    if (isRoborockDemo(product, units)) {
+      setTimeout(() => runDefaultThinkingSequence(), 300);
+    } else {
+      setTimeout(() => runAIAnalysis(product, units), 300);
+    }
+  }, [isProcessing, addMessage, runDefaultThinkingSequence, runAIAnalysis]);
+
+  // Handle mode change
   const handleModeChange = useCallback((mode: ModeType) => {
     setSelectedMode(mode);
-    // If analysis is already complete, just switch the data view
   }, []);
 
   // Handle quotation
@@ -141,6 +279,31 @@ export default function Home() {
   const handleBackFromQuotation = useCallback(() => {
     setRightView('analysis');
   }, []);
+
+  // Derive current data from analysis result or defaults
+  const treeData: TeardownNode = useMemo(() => {
+    if (isUsingDefault || !currentAnalysis) return defaultTeardownTree;
+    return currentAnalysis.teardownTree as unknown as TeardownNode;
+  }, [isUsingDefault, currentAnalysis]);
+
+  const analysisStats = useMemo(() => {
+    if (isUsingDefault || !currentAnalysis) {
+      return {
+        units: '500',
+        weight: '1,850 kg',
+        components: '42',
+        recovery: '94.2%',
+        product: 'Roborock S7',
+      };
+    }
+    return {
+      units: currentAnalysis.units.toLocaleString(),
+      weight: currentAnalysis.totalWeight,
+      components: currentAnalysis.componentCount.toString(),
+      recovery: currentAnalysis.recoveryRate,
+      product: currentAnalysis.product,
+    };
+  }, [isUsingDefault, currentAnalysis]);
 
   const accentColor = selectedMode === 'service' ? '#2563eb' : '#059669';
 
@@ -209,7 +372,11 @@ export default function Home() {
         <div className="flex-1 flex flex-col overflow-hidden">
             {rightView === 'quotation' ? (
               <div className="flex-1">
-                <QuotationGenerator mode={selectedMode} onBack={handleBackFromQuotation} />
+                <QuotationGenerator
+                  mode={selectedMode}
+                  onBack={handleBackFromQuotation}
+                  analysisData={isUsingDefault ? undefined : currentAnalysis ?? undefined}
+                />
               </div>
             ) : rightView === 'analysis' ? (
               <div className="flex-1 flex flex-col">
@@ -243,10 +410,10 @@ export default function Home() {
                   {/* Stats bar */}
                   <div className="ml-auto flex items-center gap-4">
                     {[
-                      { label: 'Units', value: '500' },
-                      { label: 'Weight', value: '1,850 kg' },
-                      { label: 'Components', value: '28' },
-                      { label: 'Recovery', value: '94.2%' },
+                      { label: 'Units', value: analysisStats.units },
+                      { label: 'Weight', value: analysisStats.weight },
+                      { label: 'Components', value: analysisStats.components },
+                      { label: 'Recovery', value: analysisStats.recovery },
                     ].map((stat) => (
                       <div key={stat.label} className="text-center">
                         <div className="text-[10px]" style={{ color: '#94a3b8' }}>{stat.label}</div>
@@ -259,9 +426,12 @@ export default function Home() {
                 {/* Tab content */}
                 <div className="flex-1 overflow-hidden">
                   {rightTab === 'flow' ? (
-                    <TeardownTree data={teardownTree} mode={selectedMode} />
+                    <TeardownTree data={treeData} mode={selectedMode} />
                   ) : (
-                    <PartsRevenue mode={selectedMode} />
+                    <PartsRevenue
+                      mode={selectedMode}
+                      analysisData={isUsingDefault ? undefined : currentAnalysis ?? undefined}
+                    />
                   )}
                 </div>
               </div>

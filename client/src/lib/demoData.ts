@@ -4,6 +4,7 @@
  * Based on real Roborock S7 teardown script.
  * Two modes: Service Fee (raw material only) and Trading (parts resale + raw material).
  * Teardown tree is shared; financial tables differ by mode.
+ * Enhanced with deep hierarchical breakdowns (3-4 levels).
  */
 
 // ============================================================
@@ -25,9 +26,9 @@ export interface TeardownNode {
   labelCn?: string;
   category: 'root' | 'assembly' | 'subassembly' | 'component';
   material?: string;
-  weight?: string;        // e.g. "380 g"
+  weight?: string;
   status: DisposalStatus;
-  sellableValue?: number; // Trading mode only, per unit $
+  sellableValue?: number;
   children?: TeardownNode[];
 }
 
@@ -94,13 +95,13 @@ export const exampleQueries: ExampleQuery[] = [
 ];
 
 // ============================================================
-// AI THINKING STEPS (simulated analysis)
+// AI THINKING STEPS (simulated analysis for Roborock fallback)
 // ============================================================
 
 export const aiThinkingSteps: string[] = [
   'Identifying product: Roborock S7 Robot Vacuum...',
   'Loading component database for Roborock S7 (3.7 kg, 7 major assemblies)...',
-  'Analyzing teardown topology: 7 assemblies, 28 sub-components identified...',
+  'Analyzing teardown topology: 7 assemblies, 42 sub-components identified...',
   'Cross-referencing component market prices (Q1 2026 spot rates)...',
   'Calculating raw material recovery values (Au, Ag, Cu, Li, Steel, ABS)...',
   'Estimating labor costs: $25/hr, 2 units/hr disassembly rate...',
@@ -112,18 +113,18 @@ export const aiAnalysisResult = `**Analysis Complete — Roborock S7 (500 units)
 
 Product identified as Roborock S7 Robot Vacuum (3.7 kg/unit).
 
-Teardown topology generated with **7 major assemblies** and **28 recoverable components**.
+Teardown topology generated with **7 major assemblies** and **42 recoverable components**.
 
 Key findings:
-• 10 components identified as third-party tradable
-• 14 components recoverable as raw materials
-• 3 components require brand destruction (IP compliance)
-• 2 components non-recyclable (HEPA filter, rubber strip)
+• 17 components identified as third-party tradable
+• 20 components recoverable as raw materials
+• 4 components require brand destruction (IP compliance)
+• 4 components non-recyclable (filters, rubber seals)
 
 The teardown flow diagram and financial analysis are now available on the right panel.`;
 
 // ============================================================
-// TEARDOWN TREE (shared structure, status differs by mode)
+// TEARDOWN TREE — Enhanced with deep hierarchical breakdowns
 // ============================================================
 
 export const teardownTree: TeardownNode = {
@@ -134,6 +135,7 @@ export const teardownTree: TeardownNode = {
   weight: '3,700 g',
   status: 'raw-material',
   children: [
+    // ── 1. TOP ASSEMBLY ──
     {
       id: 'top-assembly',
       label: 'Top Assembly',
@@ -143,21 +145,30 @@ export const teardownTree: TeardownNode = {
       children: [
         {
           id: 'top-cover',
-          label: 'Top Cover',
+          label: 'Top Cover Shell',
           labelCn: 'ABS/PC 注塑外壳',
           category: 'component',
           material: 'ABS/PC Plastic',
-          weight: '380 g',
+          weight: '280 g',
           status: 'destroy-brand',
         },
         {
-          id: 'lidar-housing',
-          label: 'LiDAR Turret Housing',
-          labelCn: 'PC/PMMA 光学塑料罩',
+          id: 'top-bumper-ring',
+          label: 'Bumper Ring',
+          labelCn: 'TPU 防撞环',
           category: 'component',
-          material: 'PC / PMMA Plastic',
-          weight: '90 g',
+          material: 'TPU Rubber',
+          weight: '65 g',
           status: 'raw-material',
+        },
+        {
+          id: 'top-decorative-panel',
+          label: 'Decorative Panel',
+          labelCn: 'PMMA 装饰面板',
+          category: 'component',
+          material: 'PMMA Acrylic',
+          weight: '35 g',
+          status: 'destroy-brand',
         },
         {
           id: 'lidar-module',
@@ -167,12 +178,21 @@ export const teardownTree: TeardownNode = {
           status: 'raw-material',
           children: [
             {
+              id: 'lidar-turret-housing',
+              label: 'LiDAR Turret Housing',
+              labelCn: 'PC/PMMA 光学塑料罩',
+              category: 'component',
+              material: 'PC / PMMA Plastic',
+              weight: '55 g',
+              status: 'raw-material',
+            },
+            {
               id: 'lidar-pcb',
               label: 'LiDAR Control PCB',
               labelCn: 'STM32 雷达控制板',
               category: 'component',
               material: 'High-grade PCB (Cu/Au)',
-              weight: '35 g',
+              weight: '25 g',
               status: 'destroy-brand',
             },
             {
@@ -181,40 +201,81 @@ export const teardownTree: TeardownNode = {
               labelCn: 'Nidec 无铁芯直流电机',
               category: 'component',
               material: 'Coreless DC Motor',
-              weight: '15 g',
+              weight: '12 g',
               status: 'third-party',
               sellableValue: 1.20,
+            },
+            {
+              id: 'lidar-laser-diode',
+              label: 'Laser Diode + Lens',
+              labelCn: '905nm 激光二极管',
+              category: 'component',
+              material: 'GaAs Semiconductor',
+              weight: '3 g',
+              status: 'third-party',
+              sellableValue: 0.80,
+            },
+            {
+              id: 'lidar-encoder',
+              label: 'Optical Encoder Disc',
+              labelCn: '光学编码盘',
+              category: 'component',
+              material: 'Glass / Metal',
+              weight: '5 g',
+              status: 'raw-material',
             },
           ],
         },
       ],
     },
+
+    // ── 2. SENSOR SYSTEM ──
     {
       id: 'sensor-system',
-      label: 'Upper Sensor System',
-      labelCn: '上部传感系统',
+      label: 'Sensor System',
+      labelCn: '传感系统',
       category: 'assembly',
       status: 'raw-material',
       children: [
         {
-          id: 'bumper-switch',
-          label: 'Bumper Micro Switch',
-          labelCn: 'Omron 微动开关',
+          id: 'bumper-switch-array',
+          label: 'Bumper Switch Array (x3)',
+          labelCn: 'Omron 微动开关组',
           category: 'component',
           material: 'Omron D2FC-F-type',
-          weight: '5 g',
+          weight: '8 g',
           status: 'third-party',
-          sellableValue: 0.40,
+          sellableValue: 0.60,
         },
         {
-          id: 'cliff-sensor',
-          label: 'Cliff / Obstacle Sensor Board',
-          labelCn: 'IR 传感板',
+          id: 'cliff-sensor-board',
+          label: 'Cliff Sensor Board (x4)',
+          labelCn: 'IR 悬崖传感板',
           category: 'component',
           material: 'IR Reflective Sensor PCB',
           weight: '12 g',
           status: 'third-party',
-          sellableValue: 0.60,
+          sellableValue: 0.80,
+        },
+        {
+          id: 'wall-sensor',
+          label: 'Wall Following Sensor',
+          labelCn: '沿墙传感器',
+          category: 'component',
+          material: 'IR Proximity Sensor',
+          weight: '5 g',
+          status: 'third-party',
+          sellableValue: 0.30,
+        },
+        {
+          id: 'carpet-sensor',
+          label: 'Carpet Detection Sensor',
+          labelCn: '地毯检测传感器',
+          category: 'component',
+          material: 'Ultrasonic Sensor Module',
+          weight: '8 g',
+          status: 'third-party',
+          sellableValue: 0.50,
         },
         {
           id: 'sensor-bracket',
@@ -225,35 +286,75 @@ export const teardownTree: TeardownNode = {
           weight: '25 g',
           status: 'raw-material',
         },
+        {
+          id: 'sensor-flex-cable',
+          label: 'Sensor Flex Cable',
+          labelCn: 'FPC 柔性排线',
+          category: 'component',
+          material: 'Polyimide / Copper FPC',
+          weight: '4 g',
+          status: 'raw-material',
+        },
       ],
     },
+
+    // ── 3. STRUCTURAL CHASSIS ──
     {
       id: 'bottom-assembly',
-      label: 'Bottom Assembly',
-      labelCn: '底部组件',
+      label: 'Structural Chassis',
+      labelCn: '结构底盘',
       category: 'assembly',
       status: 'raw-material',
       children: [
         {
           id: 'bottom-chassis',
-          label: 'Bottom Chassis',
-          labelCn: '增强 ABS 结构件',
+          label: 'Bottom Chassis Plate',
+          labelCn: '增强 ABS 底板',
           category: 'component',
           material: 'Glass-filled ABS Plastic',
-          weight: '420 g',
+          weight: '350 g',
           status: 'raw-material',
         },
         {
-          id: 'metal-brackets',
-          label: 'Metal Brackets & Weights',
-          labelCn: '冲压钢/铝件',
+          id: 'metal-weight-plate',
+          label: 'Metal Weight Plate',
+          labelCn: '冲压钢配重板',
           category: 'component',
-          material: 'Steel / Aluminum',
-          weight: '180 g',
+          material: 'Cold-rolled Steel',
+          weight: '120 g',
+          status: 'raw-material',
+        },
+        {
+          id: 'aluminum-heatsink',
+          label: 'Aluminum Heat Sink',
+          labelCn: '铝合金散热片',
+          category: 'component',
+          material: 'Aluminum 6061',
+          weight: '45 g',
+          status: 'raw-material',
+        },
+        {
+          id: 'rubber-feet',
+          label: 'Anti-vibration Rubber Feet (x4)',
+          labelCn: '减震橡胶脚垫',
+          category: 'component',
+          material: 'Silicone Rubber',
+          weight: '12 g',
+          status: 'non-recyclable',
+        },
+        {
+          id: 'screw-fastener-set',
+          label: 'Screw & Fastener Set',
+          labelCn: '螺丝紧固件组',
+          category: 'component',
+          material: 'Stainless Steel',
+          weight: '30 g',
           status: 'raw-material',
         },
       ],
     },
+
+    // ── 4. POWER SYSTEM ──
     {
       id: 'power-system',
       label: 'Power System',
@@ -262,20 +363,47 @@ export const teardownTree: TeardownNode = {
       status: 'raw-material',
       children: [
         {
-          id: 'battery-cells',
-          label: 'Battery Cells (18650)',
-          labelCn: 'ATL/Sunwoda 锂电芯',
-          category: 'component',
-          material: 'Li-ion Battery (Ni/Co/Cu)',
-          weight: '240 g',
+          id: 'battery-pack',
+          label: 'Battery Pack',
+          labelCn: '锂电池组',
+          category: 'subassembly',
           status: 'raw-material-hazmat',
+          children: [
+            {
+              id: 'battery-cells',
+              label: 'Li-ion Cells (18650 x6)',
+              labelCn: 'ATL/Sunwoda 锂电芯',
+              category: 'component',
+              material: 'Li-ion NMC (Ni/Co/Mn)',
+              weight: '240 g',
+              status: 'raw-material-hazmat',
+            },
+            {
+              id: 'battery-nickel-strips',
+              label: 'Nickel Welding Strips',
+              labelCn: '镍片焊接条',
+              category: 'component',
+              material: 'Pure Nickel Strip',
+              weight: '8 g',
+              status: 'raw-material',
+            },
+            {
+              id: 'battery-enclosure',
+              label: 'Battery Enclosure',
+              labelCn: 'ABS + 薄钢壳',
+              category: 'component',
+              material: 'ABS Plastic + Steel',
+              weight: '55 g',
+              status: 'raw-material',
+            },
+          ],
         },
         {
           id: 'bms-board',
           label: 'BMS Control Board',
-          labelCn: 'TI 电池管理板',
+          labelCn: 'TI BQ40Z50 电池管理板',
           category: 'component',
-          material: 'PCB (Cu)',
+          material: 'PCB (Cu/Au)',
           weight: '18 g',
           status: 'destroy-brand',
         },
@@ -284,22 +412,34 @@ export const teardownTree: TeardownNode = {
           label: 'Battery Wiring Harness',
           labelCn: 'JST 接插件线束',
           category: 'component',
-          material: 'Copper Wiring',
-          weight: '20 g',
+          material: 'Copper Wiring + JST Connectors',
+          weight: '15 g',
           status: 'third-party',
           sellableValue: 0.50,
         },
         {
-          id: 'battery-enclosure',
-          label: 'Battery Enclosure',
-          labelCn: 'ABS + 薄钢壳',
+          id: 'charging-contacts',
+          label: 'Charging Contact Pins',
+          labelCn: '充电触点弹簧针',
           category: 'component',
-          material: 'ABS Plastic + Steel',
-          weight: '65 g',
+          material: 'Gold-plated Copper Spring Pins',
+          weight: '6 g',
           status: 'raw-material',
+        },
+        {
+          id: 'power-regulator',
+          label: 'DC-DC Power Regulator',
+          labelCn: 'DC-DC 电压调节器',
+          category: 'component',
+          material: 'PCB Module',
+          weight: '10 g',
+          status: 'third-party',
+          sellableValue: 0.40,
         },
       ],
     },
+
+    // ── 5. DRIVE & MOTION SYSTEM ──
     {
       id: 'drive-system',
       label: 'Drive & Motion System',
@@ -308,42 +448,106 @@ export const teardownTree: TeardownNode = {
       status: 'raw-material',
       children: [
         {
-          id: 'wheel-motors',
-          label: 'Wheel Drive Motors (x2)',
-          labelCn: 'Mabuchi RS 直流电机',
-          category: 'component',
-          material: 'Mabuchi RS-series DC Motors',
-          weight: '60 g',
-          status: 'third-party',
-          sellableValue: 3.00,
+          id: 'wheel-module-left',
+          label: 'Left Wheel Module',
+          labelCn: '左轮模组',
+          category: 'subassembly',
+          status: 'raw-material',
+          children: [
+            {
+              id: 'wheel-motor-left',
+              label: 'DC Drive Motor',
+              labelCn: 'Mabuchi RS 直流电机',
+              category: 'component',
+              material: 'Mabuchi RS-series DC Motor',
+              weight: '32 g',
+              status: 'third-party',
+              sellableValue: 1.50,
+            },
+            {
+              id: 'wheel-gearbox-left',
+              label: 'Planetary Gearbox',
+              labelCn: '行星齿轮箱',
+              category: 'component',
+              material: 'Powder-metal Steel',
+              weight: '22 g',
+              status: 'third-party',
+              sellableValue: 0.40,
+            },
+            {
+              id: 'wheel-encoder-left',
+              label: 'Rotary Encoder',
+              labelCn: '旋转编码器',
+              category: 'component',
+              material: 'Hall Effect Sensor PCB',
+              weight: '5 g',
+              status: 'raw-material',
+            },
+            {
+              id: 'wheel-tire-left',
+              label: 'Rubber Tire',
+              labelCn: '橡胶轮胎',
+              category: 'component',
+              material: 'TPR Rubber',
+              weight: '18 g',
+              status: 'non-recyclable',
+            },
+          ],
         },
         {
-          id: 'wheel-gearbox',
-          label: 'Wheel Gearbox',
-          labelCn: '粉末冶金齿轮箱',
-          category: 'component',
-          material: 'Powder-metal Steel',
-          weight: '45 g',
-          status: 'third-party',
-          sellableValue: 0.80,
+          id: 'wheel-module-right',
+          label: 'Right Wheel Module',
+          labelCn: '右轮模组',
+          category: 'subassembly',
+          status: 'raw-material',
+          children: [
+            {
+              id: 'wheel-motor-right',
+              label: 'DC Drive Motor',
+              labelCn: 'Mabuchi RS 直流电机',
+              category: 'component',
+              material: 'Mabuchi RS-series DC Motor',
+              weight: '32 g',
+              status: 'third-party',
+              sellableValue: 1.50,
+            },
+            {
+              id: 'wheel-gearbox-right',
+              label: 'Planetary Gearbox',
+              labelCn: '行星齿轮箱',
+              category: 'component',
+              material: 'Powder-metal Steel',
+              weight: '22 g',
+              status: 'third-party',
+              sellableValue: 0.40,
+            },
+            {
+              id: 'wheel-encoder-right',
+              label: 'Rotary Encoder',
+              labelCn: '旋转编码器',
+              category: 'component',
+              material: 'Hall Effect Sensor PCB',
+              weight: '5 g',
+              status: 'raw-material',
+            },
+            {
+              id: 'wheel-tire-right',
+              label: 'Rubber Tire',
+              labelCn: '橡胶轮胎',
+              category: 'component',
+              material: 'TPR Rubber',
+              weight: '18 g',
+              status: 'non-recyclable',
+            },
+          ],
         },
         {
-          id: 'main-brush-motor',
-          label: 'Main Brush Motor',
-          labelCn: 'Johnson 直流电机',
+          id: 'caster-wheel',
+          label: 'Front Caster Wheel',
+          labelCn: '前万向轮',
           category: 'component',
-          material: 'Johnson-type DC Motor',
-          weight: '35 g',
-          status: 'third-party',
-          sellableValue: 1.20,
-        },
-        {
-          id: 'drive-shaft',
-          label: 'Drive Shaft',
-          labelCn: '钢轴',
-          category: 'component',
-          material: 'Steel',
-          weight: '40 g',
+          material: 'Nylon + Steel Bearing',
+          weight: '25 g',
           status: 'raw-material',
         },
         {
@@ -357,16 +561,18 @@ export const teardownTree: TeardownNode = {
           sellableValue: 0.80,
         },
         {
-          id: 'side-brush-housing',
-          label: 'Side Brush Housing',
-          labelCn: 'ABS 塑料壳',
+          id: 'side-brush-arm',
+          label: 'Side Brush Arm',
+          labelCn: '侧刷臂',
           category: 'component',
           material: 'ABS Plastic',
-          weight: '30 g',
+          weight: '15 g',
           status: 'raw-material',
         },
       ],
     },
+
+    // ── 6. CLEANING & SUCTION SYSTEM ──
     {
       id: 'cleaning-system',
       label: 'Cleaning & Suction System',
@@ -376,40 +582,96 @@ export const teardownTree: TeardownNode = {
       children: [
         {
           id: 'suction-motor',
-          label: 'Suction Fan Motor',
-          labelCn: '高速 BLDC/DC 风机',
+          label: 'Suction Fan Motor (BLDC)',
+          labelCn: '高速 BLDC 风机',
           category: 'component',
-          material: 'High-speed BLDC/DC Motor',
+          material: 'High-speed BLDC Motor',
           weight: '55 g',
           status: 'third-party',
-          sellableValue: 1.50,
+          sellableValue: 2.00,
         },
         {
-          id: 'roller-shaft',
-          label: 'Roller Shaft',
-          labelCn: '钢轴',
+          id: 'main-brush-motor',
+          label: 'Main Brush Motor',
+          labelCn: 'Johnson 直流电机',
           category: 'component',
-          material: 'Steel',
-          weight: '45 g',
-          status: 'raw-material',
-        },
-        {
-          id: 'rubber-brush',
-          label: 'Rubber Brush Strip',
-          labelCn: 'TPE/橡胶刷条',
-          category: 'component',
-          material: 'TPE / Rubber Composite',
+          material: 'Johnson-type DC Motor',
           weight: '35 g',
-          status: 'non-recyclable',
+          status: 'third-party',
+          sellableValue: 1.20,
         },
         {
-          id: 'brush-frame',
-          label: 'Brush Frame',
-          labelCn: 'ABS 塑料框架',
-          category: 'component',
-          material: 'ABS Plastic',
-          weight: '65 g',
+          id: 'main-brush-roller',
+          label: 'Main Brush Roller',
+          labelCn: '主刷滚筒',
+          category: 'subassembly',
           status: 'raw-material',
+          children: [
+            {
+              id: 'roller-shaft',
+              label: 'Roller Steel Shaft',
+              labelCn: '钢轴',
+              category: 'component',
+              material: 'Stainless Steel',
+              weight: '35 g',
+              status: 'raw-material',
+            },
+            {
+              id: 'rubber-brush-strip',
+              label: 'Rubber Brush Strip',
+              labelCn: 'TPE 橡胶刷条',
+              category: 'component',
+              material: 'TPE / Rubber Composite',
+              weight: '30 g',
+              status: 'non-recyclable',
+            },
+            {
+              id: 'brush-end-caps',
+              label: 'Brush End Caps (x2)',
+              labelCn: 'ABS 端盖',
+              category: 'component',
+              material: 'ABS Plastic',
+              weight: '10 g',
+              status: 'raw-material',
+            },
+          ],
+        },
+        {
+          id: 'mop-module',
+          label: 'Sonic Mop Module',
+          labelCn: '声波拖地模块',
+          category: 'subassembly',
+          status: 'raw-material',
+          children: [
+            {
+              id: 'mop-vibration-motor',
+              label: 'Sonic Vibration Motor',
+              labelCn: '声波振动电机',
+              category: 'component',
+              material: 'Linear Resonant Actuator',
+              weight: '20 g',
+              status: 'third-party',
+              sellableValue: 1.00,
+            },
+            {
+              id: 'mop-plate',
+              label: 'Mop Mounting Plate',
+              labelCn: '拖布安装板',
+              category: 'component',
+              material: 'ABS Plastic',
+              weight: '40 g',
+              status: 'raw-material',
+            },
+            {
+              id: 'mop-spring-mechanism',
+              label: 'Mop Lift Spring',
+              labelCn: '拖布升降弹簧',
+              category: 'component',
+              material: 'Spring Steel',
+              weight: '8 g',
+              status: 'raw-material',
+            },
+          ],
         },
         {
           id: 'dust-bin',
@@ -417,7 +679,7 @@ export const teardownTree: TeardownNode = {
           labelCn: '透明 PC 塑料尘盒',
           category: 'component',
           material: 'PC Plastic',
-          weight: '120 g',
+          weight: '95 g',
           status: 'raw-material',
         },
         {
@@ -429,8 +691,28 @@ export const teardownTree: TeardownNode = {
           weight: '15 g',
           status: 'non-recyclable',
         },
+        {
+          id: 'dust-bin-seal',
+          label: 'Dust Bin Rubber Seal',
+          labelCn: '尘盒密封圈',
+          category: 'component',
+          material: 'Silicone Rubber',
+          weight: '5 g',
+          status: 'raw-material',
+        },
+        {
+          id: 'brush-frame',
+          label: 'Brush Frame Housing',
+          labelCn: 'ABS 塑料框架',
+          category: 'component',
+          material: 'ABS Plastic',
+          weight: '55 g',
+          status: 'raw-material',
+        },
       ],
     },
+
+    // ── 7. CONTROL & ELECTRONICS ──
     {
       id: 'control-electronics',
       label: 'Control & Electronics',
@@ -443,19 +725,55 @@ export const teardownTree: TeardownNode = {
           label: 'Main Control Board',
           labelCn: 'Qualcomm/Rockchip 主控板',
           category: 'component',
-          material: 'High-grade PCB (Cu/Au)',
-          weight: '55 g',
+          material: 'High-grade PCB (Cu/Au/Ag)',
+          weight: '45 g',
           status: 'destroy-brand',
         },
         {
-          id: 'internal-wiring',
-          label: 'Internal Wiring',
-          labelCn: 'PVC 包覆铜线',
+          id: 'wifi-module',
+          label: 'Wi-Fi / BLE Module',
+          labelCn: 'ESP32 无线模块',
           category: 'component',
-          material: 'PVC-insulated Copper Wiring',
-          weight: '40 g',
+          material: 'RF Module PCB',
+          weight: '5 g',
           status: 'third-party',
           sellableValue: 0.60,
+        },
+        {
+          id: 'speaker-unit',
+          label: 'Speaker Unit',
+          labelCn: '扬声器',
+          category: 'component',
+          material: 'Neodymium Magnet Speaker',
+          weight: '12 g',
+          status: 'raw-material',
+        },
+        {
+          id: 'internal-wiring',
+          label: 'Internal Wiring Harness',
+          labelCn: 'PVC 包覆铜线束',
+          category: 'component',
+          material: 'PVC-insulated Copper Wiring',
+          weight: '35 g',
+          status: 'raw-material',
+        },
+        {
+          id: 'led-indicator-board',
+          label: 'LED Indicator Board',
+          labelCn: 'LED 指示灯板',
+          category: 'component',
+          material: 'PCB + SMD LEDs',
+          weight: '5 g',
+          status: 'raw-material',
+        },
+        {
+          id: 'button-panel',
+          label: 'Button Panel',
+          labelCn: '按键面板',
+          category: 'component',
+          material: 'Silicone + ABS',
+          weight: '8 g',
+          status: 'raw-material',
         },
       ],
     },
@@ -463,56 +781,66 @@ export const teardownTree: TeardownNode = {
 };
 
 // ============================================================
-// TRADING MODE — Sellable Parts Revenue
+// TRADING MODE — Sellable Parts Revenue (updated for enhanced tree)
 // ============================================================
 
 export const tradingSellableParts: SellablePartRow[] = [
-  { component: 'Coreless DC Motor (Nidec)', qty: 1, unitValue: 1.20, subtotal: 1.20, notes: 'Coreless DC motor', assembly: 'LiDAR Module' },
-  { component: 'Omron D2FC-F-type Micro Switch', qty: 1, unitValue: 0.40, subtotal: 0.40, notes: 'Omron-class', assembly: 'Upper Sensor System' },
-  { component: 'IR Reflective Sensor PCB', qty: 1, unitValue: 0.60, subtotal: 0.60, notes: 'Sharp/Everlight', assembly: 'Upper Sensor System' },
-  { component: 'JST Copper Wiring Harness', qty: 1, unitValue: 0.50, subtotal: 0.50, notes: 'JST-type', assembly: 'Power System' },
-  { component: 'Mabuchi RS-series DC Motors x2', qty: 2, unitValue: 1.50, subtotal: 3.00, notes: 'Mabuchi RS-series', assembly: 'Drive & Motion System' },
-  { component: 'Powder-metal Steel Gearbox', qty: 1, unitValue: 0.80, subtotal: 0.80, notes: 'Powder metal', assembly: 'Drive & Motion System' },
-  { component: 'Johnson-type DC Motor', qty: 1, unitValue: 1.20, subtotal: 1.20, notes: 'Johnson-type', assembly: 'Drive & Motion System' },
-  { component: 'N20-class Micro DC Motor', qty: 1, unitValue: 0.80, subtotal: 0.80, notes: 'N20-class', assembly: 'Drive & Motion System' },
-  { component: 'High-speed BLDC/DC Fan Motor', qty: 1, unitValue: 1.50, subtotal: 1.50, notes: 'Generic BLDC/DC', assembly: 'Cleaning & Suction System' },
-  { component: 'PVC-insulated Copper Wiring Set', qty: 1, unitValue: 0.60, subtotal: 0.60, notes: 'Scrap-grade', assembly: 'Control & Electronics' },
+  { component: 'LiDAR Rotation Motor (Nidec Coreless)', qty: 1, unitValue: 1.20, subtotal: 1.20, notes: 'Coreless DC motor', assembly: 'LiDAR Module' },
+  { component: 'Laser Diode + Lens Assembly', qty: 1, unitValue: 0.80, subtotal: 0.80, notes: '905nm GaAs', assembly: 'LiDAR Module' },
+  { component: 'Bumper Switch Array (Omron x3)', qty: 3, unitValue: 0.20, subtotal: 0.60, notes: 'Omron D2FC-F', assembly: 'Sensor System' },
+  { component: 'Cliff Sensor Board (x4)', qty: 4, unitValue: 0.20, subtotal: 0.80, notes: 'Sharp/Everlight IR', assembly: 'Sensor System' },
+  { component: 'Wall Following Sensor', qty: 1, unitValue: 0.30, subtotal: 0.30, notes: 'IR proximity', assembly: 'Sensor System' },
+  { component: 'Carpet Detection Sensor', qty: 1, unitValue: 0.50, subtotal: 0.50, notes: 'Ultrasonic', assembly: 'Sensor System' },
+  { component: 'Battery Wiring Harness (JST)', qty: 1, unitValue: 0.50, subtotal: 0.50, notes: 'JST connectors', assembly: 'Power System' },
+  { component: 'DC-DC Power Regulator', qty: 1, unitValue: 0.40, subtotal: 0.40, notes: 'Step-down module', assembly: 'Power System' },
+  { component: 'Mabuchi DC Drive Motor (L)', qty: 1, unitValue: 1.50, subtotal: 1.50, notes: 'Mabuchi RS-series', assembly: 'Left Wheel' },
+  { component: 'Planetary Gearbox (L)', qty: 1, unitValue: 0.40, subtotal: 0.40, notes: 'Powder metal', assembly: 'Left Wheel' },
+  { component: 'Mabuchi DC Drive Motor (R)', qty: 1, unitValue: 1.50, subtotal: 1.50, notes: 'Mabuchi RS-series', assembly: 'Right Wheel' },
+  { component: 'Planetary Gearbox (R)', qty: 1, unitValue: 0.40, subtotal: 0.40, notes: 'Powder metal', assembly: 'Right Wheel' },
+  { component: 'N20 Side Brush Motor', qty: 1, unitValue: 0.80, subtotal: 0.80, notes: 'N20-class micro', assembly: 'Drive System' },
+  { component: 'BLDC Suction Fan Motor', qty: 1, unitValue: 2.00, subtotal: 2.00, notes: 'High-speed BLDC', assembly: 'Cleaning System' },
+  { component: 'Johnson Main Brush Motor', qty: 1, unitValue: 1.20, subtotal: 1.20, notes: 'Johnson-type DC', assembly: 'Cleaning System' },
+  { component: 'Sonic Vibration Motor', qty: 1, unitValue: 1.00, subtotal: 1.00, notes: 'Linear resonant', assembly: 'Mop Module' },
+  { component: 'Wi-Fi / BLE Module (ESP32)', qty: 1, unitValue: 0.60, subtotal: 0.60, notes: 'RF module', assembly: 'Control Electronics' },
 ];
 
-export const tradingSellablePartsTotal = 10.60;
-export const tradingSellablePartsBatch = 5300.00; // 10.60 * 500
+export const tradingSellablePartsTotal = 14.50;
+export const tradingSellablePartsBatch = 7250.00;
 
 // ============================================================
-// RAW MATERIAL RECOVERY (shared, same for both modes)
+// RAW MATERIAL RECOVERY (updated for enhanced tree)
 // ============================================================
 
 export const rawMaterialRecovery: RawMaterialRow[] = [
-  { category: 'Plastics', material: 'ABS / Glass-filled ABS', weightKg: 0.965, unitPrice: '$0.35/kg', revenue: 0.34 },
-  { category: 'Plastics', material: 'PC / PMMA', weightKg: 0.210, unitPrice: '$0.60/kg', revenue: 0.13 },
-  { category: 'Structural Metals', material: 'Steel', weightKg: 0.285, unitPrice: '$0.20/kg', revenue: 0.06 },
-  { category: 'Structural Metals', material: 'Aluminum', weightKg: 0.040, unitPrice: '$1.80/kg', revenue: 0.07 },
-  { category: 'Battery Materials', material: 'Li-ion Battery (Ni/Co/Cu)', weightKg: 0.240, unitPrice: '$2.20/kg', revenue: 0.53 },
+  { category: 'Plastics', material: 'ABS / Glass-filled ABS', weightKg: 0.850, unitPrice: '$0.35/kg', revenue: 0.30 },
+  { category: 'Plastics', material: 'PC / PMMA / Acrylic', weightKg: 0.185, unitPrice: '$0.60/kg', revenue: 0.11 },
+  { category: 'Plastics', material: 'TPU / Nylon / Silicone', weightKg: 0.110, unitPrice: '$0.25/kg', revenue: 0.03 },
+  { category: 'Structural Metals', material: 'Steel (cold-rolled + stainless)', weightKg: 0.255, unitPrice: '$0.20/kg', revenue: 0.05 },
+  { category: 'Structural Metals', material: 'Aluminum 6061', weightKg: 0.045, unitPrice: '$1.80/kg', revenue: 0.08 },
+  { category: 'Battery Materials', material: 'Li-ion NMC (Ni/Co/Mn)', weightKg: 0.240, unitPrice: '$2.20/kg', revenue: 0.53 },
+  { category: 'Battery Materials', material: 'Nickel Strip', weightKg: 0.008, unitPrice: '$15.00/kg', revenue: 0.12 },
   { category: 'PCB Metals', material: 'Gold (Au)', weightKg: 0.0000216, unitPrice: '$70/g', revenue: 1.51 },
   { category: 'PCB Metals', material: 'Silver (Ag)', weightKg: 0.000086, unitPrice: '$0.80/g', revenue: 0.07 },
-  { category: 'PCB Metals', material: 'Copper (Cu)', weightKg: 0.0216, unitPrice: '$9.00/kg', revenue: 0.19 },
+  { category: 'PCB Metals', material: 'Copper (Cu) — wiring + PCB', weightKg: 0.028, unitPrice: '$9.00/kg', revenue: 0.25 },
+  { category: 'Magnets', material: 'Neodymium (NdFeB)', weightKg: 0.005, unitPrice: '$25.00/kg', revenue: 0.13 },
 ];
 
-export const rawMaterialTotal = 2.90;
-export const rawMaterialBatch = 1450.00; // 2.90 * 500
+export const rawMaterialTotal = 3.18;
+export const rawMaterialBatch = 1590.00;
 
 // ============================================================
 // TRADING MODE — Total Recovery
 // ============================================================
 
 export const tradingTotalRecovery = [
-  { source: 'Sellable Parts', value: 10.60 },
-  { source: 'Raw Materials', value: 2.90 },
+  { source: 'Sellable Parts', value: 14.50 },
+  { source: 'Raw Materials', value: 3.18 },
 ];
-export const tradingTotalRecoverablePerUnit = 13.50;
-export const tradingTotalRecoverableBatch = 6750.00;
+export const tradingTotalRecoverablePerUnit = 17.68;
+export const tradingTotalRecoverableBatch = 8840.00;
 
 // ============================================================
-// COST BREAKDOWN (shared base, but service fee mode adds margin)
+// COST BREAKDOWN (shared base)
 // ============================================================
 
 export const costBreakdown: CostRow[] = [
@@ -545,27 +873,20 @@ export const serviceFeeProposal: ServiceFeeRow[] = [
 
 export const serviceFeeDealSummary: DealSummaryRow[] = [
   { item: 'Revenue from Service Fee', total: 20000 },
-  { item: 'Revenue from Robots (Recovered Assets)', total: 6750 },
-  { item: 'Total Revenue', total: 26750 },
+  { item: 'Revenue from Robots (Recovered Assets)', total: 8840 },
+  { item: 'Total Revenue', total: 28840 },
   { item: 'Total Cost', total: -13000, isNegative: true },
-  { item: 'Total Profit', total: 13750 },
+  { item: 'Total Profit', total: 15840 },
 ];
 
 export const tradingDealSummary: DealSummaryRow[] = [
-  { item: 'Revenue from Sellable Parts', total: 5300 },
-  { item: 'Revenue from Raw Materials', total: 1450 },
-  { item: 'Total Revenue', total: 6750 },
+  { item: 'Revenue from Sellable Parts', total: 7250 },
+  { item: 'Revenue from Raw Materials', total: 1590 },
+  { item: 'Total Revenue', total: 8840 },
   { item: 'Total Cost', total: -10000, isNegative: true },
   { item: 'Buyout Price to Client', total: -3500, isNegative: true },
-  { item: 'Net Position', total: -6750 },
+  { item: 'Net Position', total: -4660 },
 ];
-
-// Note: Trading mode the buyout price is negotiated. 
-// In this demo, we show O2 offers $7/unit ($3,500 total) to buy the 500 units.
-// Revenue from parts ($5,300) + materials ($1,450) = $6,750
-// Costs = $10,000 + $3,500 buyout = $13,500
-// Net = $6,750 - $13,500 = -$6,750 (loss at this scale — demonstrates why trading mode 
-// requires higher volume or higher-value products)
 
 // ============================================================
 // QUOTATION GENERATION STEPS

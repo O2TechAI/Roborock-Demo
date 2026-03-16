@@ -3,22 +3,35 @@
  * 
  * Service Fee mode tabs: Raw Materials | Cost Breakdown | Service Fee | Deal Summary
  * Trading mode tabs: Sellable Parts | Raw Materials | Total Recovery | Cost Breakdown | Deal Summary
+ * 
+ * Supports both hardcoded default data (Roborock S7) and dynamic AI analysis data.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
+import type { AnalysisResult } from '@shared/analysisTypes';
 import {
   ModeType,
-  tradingSellableParts, tradingSellablePartsTotal, tradingSellablePartsBatch,
-  rawMaterialRecovery, rawMaterialTotal, rawMaterialBatch,
-  tradingTotalRecovery, tradingTotalRecoverablePerUnit, tradingTotalRecoverableBatch,
-  costBreakdown, totalCostPerUnit, totalCostBatch,
-  serviceFeeProposal,
-  serviceFeeDealSummary, tradingDealSummary,
+  tradingSellableParts as defaultSellableParts,
+  tradingSellablePartsTotal as defaultSellableTotal,
+  tradingSellablePartsBatch as defaultSellableBatch,
+  rawMaterialRecovery as defaultRawMaterials,
+  rawMaterialTotal as defaultRawTotal,
+  rawMaterialBatch as defaultRawBatch,
+  tradingTotalRecovery as defaultTotalRecovery,
+  tradingTotalRecoverablePerUnit as defaultRecoverablePerUnit,
+  tradingTotalRecoverableBatch as defaultRecoverableBatch,
+  costBreakdown as defaultCostBreakdown,
+  totalCostPerUnit as defaultCostPerUnit,
+  totalCostBatch as defaultCostBatch,
+  serviceFeeProposal as defaultServiceFee,
+  serviceFeeDealSummary as defaultServiceDeal,
+  tradingDealSummary as defaultTradingDeal,
 } from '@/lib/demoData';
 
 interface PartsRevenueProps {
   mode: ModeType;
+  analysisData?: AnalysisResult;
 }
 
 function formatCurrency(val: number, showSign = false): string {
@@ -64,24 +77,12 @@ function Td({ children, align = 'left', highlight = false, bold = false }: {
   );
 }
 
-function TotalRow({ label, value, batch, accentColor }: { label: string; value: string; batch?: string; accentColor: string }) {
-  return (
-    <tr style={{ backgroundColor: '#f8fafc' }}>
-      <td colSpan={3} className="px-3 py-3 text-right text-[12px] font-semibold" style={{ color: '#475569', borderTop: '2px solid #e2e8f0' }}>
-        {label}
-      </td>
-      <td className="px-3 py-3 text-right text-[13px] font-bold font-mono" style={{ color: accentColor, borderTop: '2px solid #e2e8f0' }}>
-        {value}
-      </td>
-      <td className="px-3 py-3 text-left text-[11px]" style={{ color: '#94a3b8', borderTop: '2px solid #e2e8f0' }}>
-        per unit
-      </td>
-    </tr>
-  );
-}
-
 /* ---- Tab: Sellable Parts (Trading only) ---- */
-function SellablePartsTab() {
+function SellablePartsTab({ data, total, batch }: {
+  data: { component: string; qty: number; unitValue: number; subtotal: number; notes: string; assembly: string }[];
+  total: number;
+  batch: number;
+}) {
   return (
     <div>
       <TableWrapper>
@@ -96,7 +97,7 @@ function SellablePartsTab() {
           </tr>
         </thead>
         <tbody>
-          {tradingSellableParts.map((row, i) => (
+          {data.map((row, i) => (
             <tr key={i} className="hover:bg-gray-50/50 transition-colors">
               <Td>{i + 1}</Td>
               <Td bold>{row.component}</Td>
@@ -110,15 +111,15 @@ function SellablePartsTab() {
       </TableWrapper>
       <div className="mt-3 flex items-center justify-end gap-6 px-3 py-3 rounded-lg" style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0' }}>
         <div className="text-[12px] font-semibold" style={{ color: '#475569' }}>Total Sellable Parts Revenue</div>
-        <div className="text-[16px] font-bold font-mono" style={{ color: '#059669' }}>${tradingSellablePartsTotal.toFixed(2)}</div>
+        <div className="text-[16px] font-bold font-mono" style={{ color: '#059669' }}>${total.toFixed(2)}</div>
         <div className="text-[11px]" style={{ color: '#94a3b8' }}>per unit</div>
       </div>
       <div className="mt-2 flex items-center justify-end gap-6 px-3 py-2 rounded-lg" style={{ backgroundColor: '#ecfdf5' }}>
         <div className="text-[11px]" style={{ color: '#065f46' }}>
-          Batch (${tradingSellablePartsTotal.toFixed(2)} x 500)
+          Batch (${total.toFixed(2)} x units)
         </div>
         <div className="text-[14px] font-bold font-mono" style={{ color: '#059669' }}>
-          ${tradingSellablePartsBatch.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          ${batch.toLocaleString('en-US', { minimumFractionDigits: 2 })}
         </div>
       </div>
     </div>
@@ -126,7 +127,11 @@ function SellablePartsTab() {
 }
 
 /* ---- Tab: Raw Materials ---- */
-function RawMaterialsTab() {
+function RawMaterialsTab({ data, total, batch }: {
+  data: { category: string; material: string; weightKg: number; unitPrice: string; revenue: number }[];
+  total: number;
+  batch: number;
+}) {
   return (
     <div>
       <TableWrapper>
@@ -140,7 +145,7 @@ function RawMaterialsTab() {
           </tr>
         </thead>
         <tbody>
-          {rawMaterialRecovery.map((row, i) => (
+          {data.map((row, i) => (
             <tr key={i} className="hover:bg-gray-50/50 transition-colors">
               <Td><span className="text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ backgroundColor: '#f1f5f9', color: '#64748b' }}>{row.category}</span></Td>
               <Td bold>{row.material}</Td>
@@ -153,15 +158,15 @@ function RawMaterialsTab() {
       </TableWrapper>
       <div className="mt-3 flex items-center justify-end gap-6 px-3 py-3 rounded-lg" style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe' }}>
         <div className="text-[12px] font-semibold" style={{ color: '#475569' }}>Total Raw Material Revenue</div>
-        <div className="text-[16px] font-bold font-mono" style={{ color: '#2563eb' }}>${rawMaterialTotal.toFixed(2)}</div>
+        <div className="text-[16px] font-bold font-mono" style={{ color: '#2563eb' }}>${total.toFixed(2)}</div>
         <div className="text-[11px]" style={{ color: '#94a3b8' }}>per unit</div>
       </div>
       <div className="mt-2 flex items-center justify-end gap-6 px-3 py-2 rounded-lg" style={{ backgroundColor: '#eff6ff' }}>
         <div className="text-[11px]" style={{ color: '#1e40af' }}>
-          Batch (${rawMaterialTotal.toFixed(2)} x 500)
+          Batch (${total.toFixed(2)} x units)
         </div>
         <div className="text-[14px] font-bold font-mono" style={{ color: '#2563eb' }}>
-          ${rawMaterialBatch.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          ${batch.toLocaleString('en-US', { minimumFractionDigits: 2 })}
         </div>
       </div>
       <p className="mt-3 text-[10px] italic px-1" style={{ color: '#94a3b8' }}>
@@ -172,7 +177,16 @@ function RawMaterialsTab() {
 }
 
 /* ---- Tab: Total Recovery (Trading only) ---- */
-function TotalRecoveryTab() {
+function TotalRecoveryTab({ sellableTotal, rawTotal, sellableBatch, rawBatch, units }: {
+  sellableTotal: number;
+  rawTotal: number;
+  sellableBatch: number;
+  rawBatch: number;
+  units: number;
+}) {
+  const totalPerUnit = sellableTotal + rawTotal;
+  const totalBatch = sellableBatch + rawBatch;
+
   return (
     <div>
       <TableWrapper>
@@ -183,25 +197,27 @@ function TotalRecoveryTab() {
           </tr>
         </thead>
         <tbody>
-          {tradingTotalRecovery.map((row, i) => (
-            <tr key={i} className="hover:bg-gray-50/50 transition-colors">
-              <Td bold>{row.source}</Td>
-              <Td align="right" highlight>${row.value.toFixed(2)}</Td>
-            </tr>
-          ))}
+          <tr className="hover:bg-gray-50/50 transition-colors">
+            <Td bold>Sellable Parts</Td>
+            <Td align="right" highlight>${sellableTotal.toFixed(2)}</Td>
+          </tr>
+          <tr className="hover:bg-gray-50/50 transition-colors">
+            <Td bold>Raw Materials</Td>
+            <Td align="right" highlight>${rawTotal.toFixed(2)}</Td>
+          </tr>
         </tbody>
       </TableWrapper>
       <div className="mt-4 p-4 rounded-lg" style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0' }}>
         <div className="flex items-center justify-between mb-2">
           <span className="text-[13px] font-semibold" style={{ color: '#1e293b' }}>Total Recoverable Value</span>
           <span className="text-[18px] font-bold font-mono" style={{ color: '#059669' }}>
-            ${tradingTotalRecoverablePerUnit.toFixed(2)}
+            ${totalPerUnit.toFixed(2)}
           </span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-[11px]" style={{ color: '#64748b' }}>Total Recoverable Value - 500 Robots</span>
+          <span className="text-[11px]" style={{ color: '#64748b' }}>Total Recoverable Value - {units} Units</span>
           <span className="text-[16px] font-bold font-mono" style={{ color: '#059669' }}>
-            ${tradingTotalRecoverableBatch.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            ${totalBatch.toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </span>
         </div>
       </div>
@@ -210,11 +226,15 @@ function TotalRecoveryTab() {
 }
 
 /* ---- Tab: Cost Breakdown ---- */
-function CostBreakdownTab() {
+function CostBreakdownTab({ data, totalPerUnit, totalBatch }: {
+  data: { category: string; assumption: string; totalCost: number; perUnit: number }[];
+  totalPerUnit: number;
+  totalBatch: number;
+}) {
   return (
     <div>
       <div className="mb-3 px-1 py-2 rounded-lg text-[11px]" style={{ backgroundColor: '#f8fafc', color: '#64748b' }}>
-        Labor rate: $25/hr | Disassembly rate: 2 units/hr/person
+        Labor rate: $25/hr | Disassembly rate varies by product complexity
       </div>
       <TableWrapper>
         <thead>
@@ -226,7 +246,7 @@ function CostBreakdownTab() {
           </tr>
         </thead>
         <tbody>
-          {costBreakdown.map((row, i) => (
+          {data.map((row, i) => (
             <tr key={i} className="hover:bg-gray-50/50 transition-colors">
               <Td bold>{row.category}</Td>
               <Td><span style={{ color: '#94a3b8' }}>{row.assumption}</span></Td>
@@ -238,59 +258,18 @@ function CostBreakdownTab() {
       </TableWrapper>
       <div className="mt-3 flex items-center justify-end gap-6 px-3 py-3 rounded-lg" style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca' }}>
         <div className="text-[12px] font-semibold" style={{ color: '#475569' }}>Total Service Cost</div>
-        <div className="text-[16px] font-bold font-mono" style={{ color: '#dc2626' }}>${totalCostBatch.toLocaleString()}</div>
-        <div className="text-[11px]" style={{ color: '#94a3b8' }}>(${ totalCostPerUnit.toFixed(2)}/unit)</div>
-      </div>
-    </div>
-  );
-}
-
-/* ---- Tab: Service Fee (Service mode only) ---- */
-function ServiceFeeTab() {
-  return (
-    <div>
-      <TableWrapper>
-        <thead>
-          <tr>
-            <Th>Item</Th>
-            <Th align="right">Per Unit ($)</Th>
-            <Th align="right">Total (500 Units)</Th>
-          </tr>
-        </thead>
-        <tbody>
-          {serviceFeeProposal.map((row, i) => {
-            const isHighlight = row.item === 'Proposed Service Fee';
-            const isNeg = row.perUnit < 0;
-            return (
-              <tr key={i} className="hover:bg-gray-50/50 transition-colors" style={isHighlight ? { backgroundColor: '#eff6ff' } : {}}>
-                <Td bold={isHighlight}>{row.item}</Td>
-                <Td align="right" highlight={isHighlight}>
-                  {row.isPercent ? row.percentValue : (isNeg ? `(${Math.abs(row.perUnit).toFixed(2)})` : `$${row.perUnit.toFixed(2)}`)}
-                </Td>
-                <Td align="right" highlight={isHighlight}>
-                  {row.isPercent ? row.percentValue : (row.total < 0 ? `($${Math.abs(row.total).toLocaleString()})` : `$${row.total.toLocaleString()}`)}
-                </Td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </TableWrapper>
-      <div className="mt-4 p-4 rounded-lg" style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe' }}>
-        <div className="text-center">
-          <div className="text-[11px] uppercase tracking-wider mb-1" style={{ color: '#64748b' }}>Proposed Service Fee to Client</div>
-          <div className="text-[24px] font-bold font-mono" style={{ color: '#2563eb', fontFamily: "'Space Grotesk', system-ui" }}>
-            $20,000
-          </div>
-          <div className="text-[11px] mt-1" style={{ color: '#94a3b8' }}>$40.00 per unit x 500 units</div>
-        </div>
+        <div className="text-[16px] font-bold font-mono" style={{ color: '#dc2626' }}>${totalBatch.toLocaleString()}</div>
+        <div className="text-[11px]" style={{ color: '#94a3b8' }}>(${totalPerUnit.toFixed(2)}/unit)</div>
       </div>
     </div>
   );
 }
 
 /* ---- Tab: Deal Summary ---- */
-function DealSummaryTab({ mode }: { mode: ModeType }) {
-  const data = mode === 'service' ? serviceFeeDealSummary : tradingDealSummary;
+function DealSummaryTab({ mode, data }: {
+  mode: ModeType;
+  data: { item: string; total: number; isNegative?: boolean }[];
+}) {
   const accentColor = mode === 'service' ? '#2563eb' : '#059669';
   const lastRow = data[data.length - 1];
 
@@ -334,16 +313,6 @@ function DealSummaryTab({ mode }: { mode: ModeType }) {
           }}>
             {lastRow.total < 0 ? '-' : ''}${Math.abs(lastRow.total).toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </div>
-          {mode === 'service' && lastRow.total > 0 && (
-            <div className="text-[10px] mt-2 max-w-[320px] mx-auto" style={{ color: '#94a3b8' }}>
-              Proposed service fee: $20,000 ($40/unit). Includes full disassembly, compliance, and material recovery.
-            </div>
-          )}
-          {mode === 'trading' && lastRow.total < 0 && (
-            <div className="text-[10px] mt-2 max-w-[320px] mx-auto" style={{ color: '#94a3b8' }}>
-              Trading mode at this volume shows a loss. Higher volumes or higher-value products improve unit economics significantly.
-            </div>
-          )}
         </div>
       </div>
     </div>
@@ -351,14 +320,30 @@ function DealSummaryTab({ mode }: { mode: ModeType }) {
 }
 
 /* ---- Main Component ---- */
-export default function PartsRevenue({ mode }: PartsRevenueProps) {
-  const serviceTabs = ['Raw Materials', 'Cost Breakdown', 'Service Fee', 'Deal Summary'];
+export default function PartsRevenue({ mode, analysisData }: PartsRevenueProps) {
+  // Derive data from analysisData or defaults
+  const sellableParts = analysisData?.tradingSellableParts ?? defaultSellableParts;
+  const sellableTotal = analysisData?.tradingSellablePartsTotal ?? defaultSellableTotal;
+  const sellableBatch = analysisData?.tradingSellablePartsBatch ?? defaultSellableBatch;
+  const rawMaterials = analysisData?.rawMaterialRecovery ?? defaultRawMaterials;
+  const rawTotal = analysisData?.rawMaterialTotal ?? defaultRawTotal;
+  const rawBatch = analysisData?.rawMaterialBatch ?? defaultRawBatch;
+  const costs = useMemo(() => {
+    if (!analysisData) return defaultCostBreakdown;
+    return analysisData.costBreakdown.map(c => ({ ...c, categoryCn: '' }));
+  }, [analysisData]);
+  const costPerUnit = analysisData?.totalCostPerUnit ?? defaultCostPerUnit;
+  const costBatch = analysisData?.totalCostBatch ?? defaultCostBatch;
+  const serviceDeal = analysisData?.serviceFeeDealSummary ?? defaultServiceDeal;
+  const tradingDeal = analysisData?.tradingDealSummary ?? defaultTradingDeal;
+  const units = analysisData?.units ?? 500;
+
+  const serviceTabs = ['Raw Materials', 'Cost Breakdown', 'Deal Summary'];
   const tradingTabs = ['Sellable Parts', 'Raw Materials', 'Total Recovery', 'Cost Breakdown', 'Deal Summary'];
   const tabs = mode === 'service' ? serviceTabs : tradingTabs;
   const [activeTab, setActiveTab] = useState(tabs[0]);
   const currentTabs = mode === 'service' ? serviceTabs : tradingTabs;
 
-  // Reset tab when mode changes
   useEffect(() => {
     if (!currentTabs.includes(activeTab)) {
       setActiveTab(currentTabs[0]);
@@ -394,12 +379,27 @@ export default function PartsRevenue({ mode }: PartsRevenueProps) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.2 }}
         >
-          {activeTab === 'Sellable Parts' && <SellablePartsTab />}
-          {activeTab === 'Raw Materials' && <RawMaterialsTab />}
-          {activeTab === 'Total Recovery' && <TotalRecoveryTab />}
-          {activeTab === 'Cost Breakdown' && <CostBreakdownTab />}
-          {activeTab === 'Service Fee' && <ServiceFeeTab />}
-          {activeTab === 'Deal Summary' && <DealSummaryTab mode={mode} />}
+          {activeTab === 'Sellable Parts' && (
+            <SellablePartsTab data={sellableParts} total={sellableTotal} batch={sellableBatch} />
+          )}
+          {activeTab === 'Raw Materials' && (
+            <RawMaterialsTab data={rawMaterials} total={rawTotal} batch={rawBatch} />
+          )}
+          {activeTab === 'Total Recovery' && (
+            <TotalRecoveryTab
+              sellableTotal={sellableTotal}
+              rawTotal={rawTotal}
+              sellableBatch={sellableBatch}
+              rawBatch={rawBatch}
+              units={units}
+            />
+          )}
+          {activeTab === 'Cost Breakdown' && (
+            <CostBreakdownTab data={costs} totalPerUnit={costPerUnit} totalBatch={costBatch} />
+          )}
+          {activeTab === 'Deal Summary' && (
+            <DealSummaryTab mode={mode} data={mode === 'service' ? serviceDeal : tradingDeal} />
+          )}
         </motion.div>
       </div>
     </div>
