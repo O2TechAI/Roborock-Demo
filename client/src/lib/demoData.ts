@@ -105,35 +105,32 @@ export const aiThinkingSteps: string[] = [
   'Calculating raw material recovery: Precious metals from PCBs — Au (0.0216g/unit at $70/g = $1.51), Ag (0.086g at $0.80/g = $0.07). Base metals — Cu from windings + PCB + wiring (65g at $9/kg = $0.59), NdFeB magnets from motors (20g at $25/kg = $0.50). Battery cathode NMC 622 (96g at $8.50/kg = $0.82). Structural steel (310g at $0.20/kg), aluminum 6061 (57g at $1.80/kg). Total raw material per unit: $4.42.',
   'Calculating sellable parts revenue: BLDC suction motor ($2.00), Mabuchi drive motors x2 ($3.00), Johnson brush motor ($1.20), LiDAR rotation motor ($1.20), side brush motor ($0.80), sonic vibration LRA ($1.00), laser diode assembly ($0.80), APD photodetector ($0.50), sensors & switches ($2.20), Wi-Fi module ($0.60), DC-DC regulator ($0.40), battery harness ($0.50), planetary gearboxes x2 ($0.80). Total sellable per unit: $15.00.',
   'Estimating costs: Labor — 250 hours for 500 units at $25/hr = $6,250 ($12.50/unit). Logistics — $3.00/unit x 500 = $1,500. Compliance (hazmat handling, data destruction) — $2.00/unit x 500 = $1,000. Warehouse operations — $2.50/unit x 500 = $1,250. Total processing cost: $10,000 ($20.00/unit).',
-  'Computing deal economics: Total recoverable value per unit = $15.00 (parts) + $4.42 (materials) = $19.42. Batch value for 500 units = $9,710. Processing cost = $10,000. In Trading mode, maximum buyout price to break even = $9,710 - $10,000 = -$290 (negative). With a target 15% margin, the deal is unprofitable at any buyout price above $0. Recommendation: proceed with Service Fee mode or negotiate zero-cost acquisition.',
+  'Computing deal economics: Total recoverable value per unit = $15.00 (parts) + $4.42 (materials) = $19.42. Batch value for 500 units = $9,710. Processing cost = $10,000. In Trading mode, maximum buyout price to break even = $9,710 - $10,000 = -$290 (negative). With a target 15% margin, the deal is unprofitable at any buyout price above $0. Recommendation: do not buy at any price.',
   'Analysis complete. Generating teardown flow diagram and financial tables...',
 ];
 
-export const aiAnalysisResult = `**Analysis Complete — Roborock S7 (500 units)**
+export const aiAnalysisResult = `Analysis Complete — Roborock S7 (500 units)
 
 Product: Roborock S7 Robot Vacuum (3.7 kg/unit, 1,850 kg total batch)
 Manufacturer: Beijing Roborock Technology Co. (Xiaomi ecosystem)
 
-**Teardown Summary**
-7 major assemblies → 58 recoverable components across 4-5 hierarchy levels.
+Teardown Summary
+7 major assemblies, 58 recoverable components across 4-5 hierarchy levels.
 
-**Disposal Classification**
-• 19 third-party tradable (motors, sensors, modules)
-• 28 raw material recoverable (metals, plastics, battery cathode)
-• 6 brand destruction required (branded shells, firmware ICs)
-• 5 non-recyclable (worn filters, rubber, adhesive)
+Disposal Classification
+- 19 third-party tradable (motors, sensors, modules)
+- 28 raw material recoverable (metals, plastics, battery cathode)
+- 6 brand destruction required (branded shells, firmware ICs)
+- 5 non-recyclable (worn filters, rubber, adhesive)
 
-**Financial Summary**
-• Sellable parts: $15.00/unit ($7,500 batch)
-• Raw materials: $4.42/unit ($2,210 batch)
-• Total recoverable: $19.42/unit ($9,710 batch)
-• Processing cost: $20.00/unit ($10,000 batch)
+Financial Summary
+Sellable parts: $15.00/unit ($7,500 batch)
+Raw materials: $4.42/unit ($2,210 batch)
+Total recoverable: $19.42/unit ($9,710 batch)
+Processing cost: $20.00/unit ($10,000 batch)
 
-**Trading Mode Assessment**
-Total recoverable ($9,710) < Processing cost ($10,000). At any buyout price > $0, this deal loses money. **Recommendation: Do not buy.** Consider Service Fee mode instead, where the client pays a processing fee and O2 retains recovered assets.
-
-**Service Fee Mode Assessment**
-Proposed fee: $40.00/unit ($20,000 batch). Net profit: $16,710 (56% margin). ✅ Recommended.
+Trading Mode Assessment
+Total recoverable ($9,710) is less than processing cost ($10,000). At any buyout price above $0, this deal loses money. Recommendation: Do not buy at any price.
 
 The teardown flow diagram and detailed financial tables are now available on the right panel.`;
 
@@ -1428,19 +1425,18 @@ export const tradingDealSummary: DealSummaryRow[] = [
   { item: 'Total Processing Cost', total: -10000, isNegative: true },
   { item: 'Net Before Buyout', total: -290, isNegative: true },
   { item: 'Max Buyout Price (15% margin)', total: 0 },
-  { item: '⚠️ RECOMMENDATION: DO NOT BUY', total: 0 },
 ];
 
 // Smart buyout pricing logic:
 // maxBuyout = totalRevenue - totalCost - (totalRevenue * targetMargin)
 // If maxBuyout <= 0, recommend "Don't Buy" — the deal is unprofitable at any buyout price.
 // For Roborock S7: $9,710 - $10,000 = -$290 (already negative before buyout)
-// → Trading mode is NOT viable. Recommend Service Fee mode instead.
+// → Trading mode is NOT viable at any buyout price.
 export const tradingBuyoutRecommendation = {
   viable: false,
   maxBuyoutPrice: 0,
   maxBuyoutPerUnit: 0,
-  reason: 'Total recoverable revenue ($9,710) is less than processing cost ($10,000). Any buyout price would increase the loss. Recommend Service Fee mode instead.',
+  reason: 'Total recoverable revenue ($9,710) is less than processing cost ($10,000). Any buyout price would increase the loss.',
   targetMargin: 0.15,
 };
 

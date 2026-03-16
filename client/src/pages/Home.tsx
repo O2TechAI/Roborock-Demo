@@ -187,7 +187,7 @@ export default function Home() {
       setMessages(prev => [...prev, {
         id: `error-${Date.now()}`,
         role: 'assistant' as const,
-        content: `**Analysis Error**\n\nI encountered an issue analyzing "${product}". ${error.message || 'Please try again.'}\n\nYou can try:\n• Rephrasing the product name\n• Using a more specific product model\n• Trying one of the example queries`,
+        content: `Analysis could not be completed for "${product}". ${error.message || 'Please try again with a different product name or model number.'}`,
       }]);
     } finally {
       setIsProcessing(false);
@@ -302,7 +302,7 @@ export default function Home() {
               O2 AI
             </span>
             <span className="text-[10px] ml-2 px-1.5 py-0.5 rounded-full font-medium" style={{ backgroundColor: '#f1f5f9', color: '#64748b' }}>
-              Smart E-Waste Platform
+              AI Pricing Intelligence
             </span>
           </div>
         </div>

@@ -286,13 +286,8 @@ export default function QuotationGenerator({ mode, onBack, analysisData }: Quota
                           DO NOT BUY
                         </div>
                       </div>
-                      <div className="text-[11px] leading-relaxed mb-3" style={{ color: '#991b1b' }}>
+                      <div className="text-[11px] leading-relaxed" style={{ color: '#991b1b' }}>
                         {qData.tradingReason}
-                      </div>
-                      <div className="pt-3" style={{ borderTop: '1px solid #fecaca' }}>
-                        <div className="text-[11px] font-medium" style={{ color: '#065f46' }}>
-                          Recommended: Switch to Service Fee mode (projected profit: {fmt(qData.netProfitService)})
-                        </div>
                       </div>
                     </div>
                   )}

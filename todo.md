@@ -65,3 +65,10 @@
 - [x] Fix quotation number inconsistencies between deal summary and quotation view
 - [x] Update deal summary to show proper buyout pricing logic
 - [x] Test and save checkpoint (7 tests passing)
+
+## Phase 12: Bug Fixes & Professional Polish
+- [x] Fix unicode escape rendering (removed emoji row from deal summary entirely)
+- [x] Remove "Switch to Service Fee mode" recommendation from Trading deal summary
+- [x] Remove all markdown syntax from chat messages (clean plain text)
+- [x] Make chat text clean, professional plain text
+- [x] Change header badge from "Smart E-Waste Platform" to "AI Pricing Intelligence"

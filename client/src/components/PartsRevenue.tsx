@@ -273,9 +273,7 @@ function DealSummaryTab({ mode, data, buyoutRecommendation }: {
   buyoutRecommendation?: { viable: boolean; maxBuyoutPrice: number; maxBuyoutPerUnit: number; reason: string };
 }) {
   const accentColor = mode === 'service' ? '#2563eb' : '#059669';
-  // Filter out the recommendation row for table display
-  const tableData = data.filter(row => !row.item.startsWith('\u26a0\ufe0f'));
-  const hasRecommendation = data.some(row => row.item.startsWith('\u26a0\ufe0f'));
+  const tableData = data;
   
   // Find the key financial row (Net Before Buyout, Net Position, or Total Profit)
   const netRow = tableData.find(row => 
@@ -336,15 +334,10 @@ function DealSummaryTab({ mode, data, buyoutRecommendation }: {
             ) : (
               <>
                 <div className="text-[13px] font-bold mb-2" style={{ color: '#dc2626', fontFamily: "'Space Grotesk', system-ui" }}>
-                  \u26a0\ufe0f DO NOT BUY
+                  DO NOT BUY
                 </div>
                 <div className="text-[11px] leading-relaxed" style={{ color: '#991b1b' }}>
                   {buyoutRecommendation.reason}
-                </div>
-                <div className="mt-3 pt-3" style={{ borderTop: '1px solid #fecaca' }}>
-                  <div className="text-[11px] font-medium" style={{ color: '#065f46' }}>
-                    \u2705 Recommended: Switch to Service Fee mode
-                  </div>
                 </div>
               </>
             )}
@@ -406,7 +399,7 @@ export default function PartsRevenue({ mode, analysisData }: PartsRevenueProps) 
         viable: false,
         maxBuyoutPrice: 0,
         maxBuyoutPerUnit: 0,
-        reason: `Total recoverable revenue ($${totalRevenue.toLocaleString()}) minus processing cost ($${totalCost.toLocaleString()}) leaves insufficient margin. Any buyout price would result in a loss. Recommend Service Fee mode instead.`,
+        reason: `Total recoverable revenue ($${totalRevenue.toLocaleString()}) minus processing cost ($${totalCost.toLocaleString()}) leaves insufficient margin. Any buyout price would result in a loss.`,
         targetMargin,
       };
     }

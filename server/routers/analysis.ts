@@ -100,7 +100,7 @@ Return JSON with this exact structure:
     {"item": "Operating Costs", "total": -6000, "isNegative": true},
     {"item": "Net Profit/Loss", "total": 1000}
   ],
-  "summary": "Brief markdown summary of the analysis"
+  "summary": "Brief plain text summary of the analysis (no markdown, no special characters)"
 }
 
 IMPORTANT: Create a detailed teardown tree with 3-4 levels of depth for key assemblies (batteries, motors, PCBs, displays). Use real component names and materials. Fill all financial totals correctly and consistently. Make it technically accurate for ${product}.`;
