@@ -14,172 +14,169 @@ import { publicProcedure, router } from "../_core/trpc";
 import { invokeLLM } from "../_core/llm";
 import type { AnalysisResult } from "@shared/analysisTypes";
 
-const SYSTEM_PROMPT = `You are O2 AI, an expert e-waste recycling analysis system. You analyze electronic products and generate detailed teardown breakdowns for recycling operations.
+const SYSTEM_PROMPT = `You are O2 AI, an expert e-waste recycling analysis system with deep industry knowledge. Given a product and quantity, return a JSON analysis.
 
-When given a product and quantity, you must generate a comprehensive JSON analysis including:
+RULES:
+- 5-7 main assemblies per product
+- Each assembly has 3-8 sub-components. Key sub-assemblies (battery packs, motors, PCBs, display modules) should have their own children (2-5 items), creating 3-4 levels of depth.
+- Use REAL component names, manufacturer references where known (e.g. "Nidec brushless motor", "TI BQ40Z50 BMS IC", "Samsung AMOLED panel"), realistic weights in grams, and accurate materials.
+- Status types: "destroy-brand" (branded IP, firmware), "raw-material" (recoverable metals/plastics), "raw-material-hazmat" (Li-ion cells, electrolyte, lead solder), "third-party" (resalable motors, sensors, modules), "non-recyclable" (filters, worn rubber, adhesive residue)
+- Classification rules: PCBs with firmware/data → destroy-brand; Li-ion cells → raw-material-hazmat; working motors/sensors/modules → third-party; structural metals/plastics → raw-material; worn consumables → non-recyclable
+- Labor rate $25/hr, 2 units/hr disassembly. Service Fee mode: charge client processing fee + keep recovered assets (~35% net margin). Trading mode: buy e-waste at buyout price, resell parts + materials.
+- Each node needs: id (kebab-case), label, labelCn (Chinese name), category ("root"|"assembly"|"subassembly"|"component"), weight (string like "350 g"), status, material (leaf nodes only), sellableValue (number, third-party only), children (array, omit for leaf nodes).
+- Financial tables must be internally consistent: sellable parts total = sum of subtotals; raw material batch = total * units; cost batch = sum of all cost items.
 
-1. **Teardown Tree**: A hierarchical breakdown of the product into assemblies → subassemblies → components. Each node needs:
-   - id: unique kebab-case identifier
-   - label: English component name
-   - labelCn: Chinese component name
-   - category: "root" | "assembly" | "subassembly" | "component"
-   - material: material composition (for components)
-   - weight: weight in grams (e.g. "380 g")
-   - status: disposal classification:
-     * "destroy-brand" — contains brand IP, must be destroyed
-     * "raw-material" — recoverable as raw material
-     * "raw-material-hazmat" — hazardous material requiring special handling (batteries, etc.)
-     * "third-party" — sellable to third-party markets
-     * "non-recyclable" — cannot be recycled
-   - sellableValue: per-unit dollar value (only for "third-party" status items)
-   - children: nested components
+Return ONLY valid JSON. No markdown fences, no explanation.`;
 
-2. **Financial Analysis**:
-   - tradingSellableParts: list of third-party sellable components with qty, unit value, subtotal
-   - rawMaterialRecovery: recovered materials with weight, unit price, revenue
-   - costBreakdown: labor, logistics, compliance, warehouse costs
-   - Deal summaries for both Service Fee and Trading modes
+const buildUserPrompt = (product: string, units: number) => `Analyze for e-waste recycling:
 
-Key rules:
-- Create realistic, detailed breakdowns with 5-7 main assemblies
-- Each assembly should have 3-8 components, some with sub-assemblies
-- Use real component names, materials, and realistic market values
-- Weight values must be realistic for the product type
-- PCB boards with brand firmware should be "destroy-brand"
-- Batteries are always "raw-material-hazmat"
-- Motors, sensors, connectors are typically "third-party" (sellable)
-- Plastic housings with brand logos are "destroy-brand"
-- Plain structural materials are "raw-material"
-- Filters, rubber seals, worn parts are "non-recyclable"
-- Labor rate: $25/hr, disassembly rate varies by product complexity
-- Include precious metals recovery (Au, Ag from PCBs) in raw materials
-- Service Fee mode: company charges client for processing + keeps recovered assets
-- Trading mode: company buys the e-waste from client, resells parts + materials
+Product: ${product}
+Quantity: ${units} units
 
-Return ONLY valid JSON matching the AnalysisResult schema. No markdown, no explanation.`;
-
-const JSON_SCHEMA = {
-  name: "analysis_result",
-  strict: true,
-  schema: {
-    type: "object",
-    properties: {
-      product: { type: "string", description: "Product name" },
-      units: { type: "integer", description: "Number of units" },
-      weightPerUnit: { type: "string", description: "Weight per unit, e.g. '3,700 g'" },
-      totalWeight: { type: "string", description: "Total weight, e.g. '1,850 kg'" },
-      assemblyCount: { type: "integer", description: "Number of main assemblies" },
-      componentCount: { type: "integer", description: "Total number of components" },
-      recoveryRate: { type: "string", description: "Recovery rate percentage, e.g. '94.2%'" },
-      teardownTree: {
-        type: "object",
-        description: "Root node of the teardown tree",
-        properties: {
-          id: { type: "string" },
-          label: { type: "string" },
-          labelCn: { type: "string" },
-          category: { type: "string", enum: ["root"] },
-          weight: { type: "string" },
-          status: { type: "string", enum: ["raw-material"] },
-          children: {
-            type: "array",
-            description: "Assembly-level children",
-            items: { type: "object", additionalProperties: true }
+Return JSON with this exact structure:
+{
+  "product": "${product}",
+  "units": ${units},
+  "weightPerUnit": "e.g. 3700 g",
+  "totalWeight": "e.g. 1850 kg",
+  "assemblyCount": 6,
+  "componentCount": 28,
+  "recoveryRate": "e.g. 94.2%",
+  "teardownTree": {
+    "id": "root",
+    "label": "${product}",
+    "labelCn": "Chinese name",
+    "category": "root",
+    "weight": "total weight",
+    "status": "raw-material",
+    "children": [
+      {
+        "id": "assembly-id",
+        "label": "Assembly Name",
+        "labelCn": "Chinese",
+        "category": "assembly",
+        "weight": "weight",
+        "status": "raw-material",
+        "children": [
+          {
+            "id": "component-id",
+            "label": "Component",
+            "labelCn": "Chinese",
+            "category": "component",
+            "material": "material type",
+            "weight": "weight",
+            "status": "third-party",
+            "sellableValue": 12.50
           }
-        },
-        required: ["id", "label", "labelCn", "category", "weight", "status", "children"],
-        additionalProperties: false
-      },
-      tradingSellableParts: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            component: { type: "string" },
-            qty: { type: "integer" },
-            unitValue: { type: "number" },
-            subtotal: { type: "number" },
-            notes: { type: "string" },
-            assembly: { type: "string" }
-          },
-          required: ["component", "qty", "unitValue", "subtotal", "notes", "assembly"],
-          additionalProperties: false
-        }
-      },
-      tradingSellablePartsTotal: { type: "number" },
-      tradingSellablePartsBatch: { type: "number" },
-      rawMaterialRecovery: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            category: { type: "string" },
-            material: { type: "string" },
-            weightKg: { type: "number" },
-            unitPrice: { type: "string" },
-            revenue: { type: "number" }
-          },
-          required: ["category", "material", "weightKg", "unitPrice", "revenue"],
-          additionalProperties: false
-        }
-      },
-      rawMaterialTotal: { type: "number" },
-      rawMaterialBatch: { type: "number" },
-      costBreakdown: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            category: { type: "string" },
-            assumption: { type: "string" },
-            totalCost: { type: "number" },
-            perUnit: { type: "number" }
-          },
-          required: ["category", "assumption", "totalCost", "perUnit"],
-          additionalProperties: false
-        }
-      },
-      totalCostPerUnit: { type: "number" },
-      totalCostBatch: { type: "number" },
-      serviceFeeDealSummary: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            item: { type: "string" },
-            total: { type: "number" },
-            isNegative: { type: "boolean" }
-          },
-          required: ["item", "total"],
-          additionalProperties: false
-        }
-      },
-      tradingDealSummary: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            item: { type: "string" },
-            total: { type: "number" },
-            isNegative: { type: "boolean" }
-          },
-          required: ["item", "total"],
-          additionalProperties: false
-        }
-      },
-      summary: { type: "string", description: "Human-readable analysis summary in markdown" }
-    },
-    required: [
-      "product", "units", "weightPerUnit", "totalWeight",
-      "assemblyCount", "componentCount", "recoveryRate",
-      "teardownTree", "tradingSellableParts", "tradingSellablePartsTotal",
-      "tradingSellablePartsBatch", "rawMaterialRecovery", "rawMaterialTotal",
-      "rawMaterialBatch", "costBreakdown", "totalCostPerUnit", "totalCostBatch",
-      "serviceFeeDealSummary", "tradingDealSummary", "summary"
-    ],
-    additionalProperties: false
+        ]
+      }
+    ]
+  },
+  "tradingSellableParts": [
+    {"component": "Name", "qty": ${units}, "unitValue": 12.50, "subtotal": ${units * 12.5}, "notes": "condition", "assembly": "parent assembly"}
+  ],
+  "tradingSellablePartsTotal": 0,
+  "tradingSellablePartsBatch": 0,
+  "rawMaterialRecovery": [
+    {"category": "Metals", "material": "Copper", "weightKg": 100, "unitPrice": "$8.50/kg", "revenue": 850}
+  ],
+  "rawMaterialTotal": 0,
+  "rawMaterialBatch": 0,
+  "costBreakdown": [
+    {"category": "Labor", "assumption": "details", "totalCost": 5000, "perUnit": 10}
+  ],
+  "totalCostPerUnit": 0,
+  "totalCostBatch": 0,
+  "serviceFeeDealSummary": [
+    {"item": "Processing Fee Revenue", "total": 10000},
+    {"item": "Recovered Asset Value", "total": 5000},
+    {"item": "Operating Costs", "total": -8000, "isNegative": true},
+    {"item": "Net Profit", "total": 7000}
+  ],
+  "tradingDealSummary": [
+    {"item": "Sellable Parts Revenue", "total": 10000},
+    {"item": "Raw Material Revenue", "total": 5000},
+    {"item": "Buyout Cost", "total": -8000, "isNegative": true},
+    {"item": "Operating Costs", "total": -6000, "isNegative": true},
+    {"item": "Net Profit/Loss", "total": 1000}
+  ],
+  "summary": "Brief markdown summary of the analysis"
+}
+
+IMPORTANT: Create a detailed teardown tree with 3-4 levels of depth for key assemblies (batteries, motors, PCBs, displays). Use real component names and materials. Fill all financial totals correctly and consistently. Make it technically accurate for ${product}.`;
+
+/**
+ * Attempt to extract valid JSON from a potentially malformed LLM response.
+ * Handles common issues like markdown fences, trailing commas, truncation.
+ */
+function extractJSON(raw: string): any {
+  // Strip markdown fences
+  let cleaned = raw.trim();
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
   }
-};
+
+  // First try direct parse
+  try {
+    return JSON.parse(cleaned);
+  } catch (_) {
+    // Try to fix common issues
+  }
+
+  // Try to fix truncated JSON by closing open structures
+  try {
+    let fixed = cleaned;
+    // Count open/close braces and brackets
+    let braces = 0, brackets = 0;
+    let inString = false, escape = false;
+    for (const ch of fixed) {
+      if (escape) { escape = false; continue; }
+      if (ch === '\\') { escape = true; continue; }
+      if (ch === '"') { inString = !inString; continue; }
+      if (inString) continue;
+      if (ch === '{') braces++;
+      if (ch === '}') braces--;
+      if (ch === '[') brackets++;
+      if (ch === ']') brackets--;
+    }
+
+    // Remove trailing comma before closing
+    fixed = fixed.replace(/,\s*$/, '');
+
+    // Close any open structures
+    while (brackets > 0) { fixed += ']'; brackets--; }
+    while (braces > 0) { fixed += '}'; braces--; }
+
+    return JSON.parse(fixed);
+  } catch (_) {
+    // Final attempt: find the outermost { ... } and try that
+  }
+
+  // Try to find the largest valid JSON object
+  const firstBrace = cleaned.indexOf('{');
+  if (firstBrace >= 0) {
+    let depth = 0;
+    let inStr = false;
+    let esc = false;
+    let lastValidEnd = -1;
+    for (let i = firstBrace; i < cleaned.length; i++) {
+      const ch = cleaned[i];
+      if (esc) { esc = false; continue; }
+      if (ch === '\\') { esc = true; continue; }
+      if (ch === '"') { inStr = !inStr; continue; }
+      if (inStr) continue;
+      if (ch === '{') depth++;
+      if (ch === '}') { depth--; if (depth === 0) { lastValidEnd = i; break; } }
+    }
+    if (lastValidEnd > 0) {
+      try {
+        return JSON.parse(cleaned.substring(firstBrace, lastValidEnd + 1));
+      } catch (_) {}
+    }
+  }
+
+  throw new Error("Could not parse LLM response as JSON");
+}
 
 export const analysisRouter = router({
   /**
@@ -193,23 +190,7 @@ export const analysisRouter = router({
     }))
     .mutation(async ({ input }) => {
       const { product, units } = input;
-
-      const userMessage = `Analyze the following product for e-waste recycling:
-
-Product: ${product}
-Quantity: ${units} units
-
-Generate a complete teardown analysis with:
-- Detailed hierarchical teardown tree (5-7 main assemblies, each with 3-8 components, some with sub-assemblies for 3-4 levels of depth)
-- Sellable parts list for Trading mode
-- Raw material recovery values
-- Cost breakdown (labor at $25/hr, logistics, compliance, warehouse)
-- Deal summaries for both Service Fee and Trading modes
-
-Service Fee mode: The recycling company charges the client a service fee to process the e-waste. Revenue = service fee + recovered asset value. Aim for ~35% net margin.
-Trading mode: The recycling company buys the e-waste from the client at a negotiated buyout price, then recovers value from parts and materials. Show realistic economics (may show a loss at lower volumes).
-
-Make the teardown technically accurate for this specific product. Use real component names, realistic weights, and current market prices.`;
+      const userMessage = buildUserPrompt(product, units);
 
       try {
         const response = await invokeLLM({
@@ -219,9 +200,41 @@ Make the teardown technically accurate for this specific product. Use real compo
           ],
           response_format: {
             type: "json_schema",
-            json_schema: JSON_SCHEMA as any,
+            json_schema: {
+              name: "analysis_result",
+              strict: false,
+              schema: {
+                type: "object",
+                properties: {
+                  product: { type: "string" },
+                  units: { type: "integer" },
+                  weightPerUnit: { type: "string" },
+                  totalWeight: { type: "string" },
+                  assemblyCount: { type: "integer" },
+                  componentCount: { type: "integer" },
+                  recoveryRate: { type: "string" },
+                  teardownTree: { type: "object" },
+                  tradingSellableParts: { type: "array" },
+                  tradingSellablePartsTotal: { type: "number" },
+                  tradingSellablePartsBatch: { type: "number" },
+                  rawMaterialRecovery: { type: "array" },
+                  rawMaterialTotal: { type: "number" },
+                  rawMaterialBatch: { type: "number" },
+                  costBreakdown: { type: "array" },
+                  totalCostPerUnit: { type: "number" },
+                  totalCostBatch: { type: "number" },
+                  serviceFeeDealSummary: { type: "array" },
+                  tradingDealSummary: { type: "array" },
+                  summary: { type: "string" },
+                },
+                required: [
+                  "product", "units", "teardownTree",
+                  "tradingSellableParts", "rawMaterialRecovery",
+                  "costBreakdown", "serviceFeeDealSummary", "tradingDealSummary", "summary"
+                ],
+              }
+            } as any,
           },
-          maxTokens: 16384,
         });
 
         const content = response.choices[0]?.message?.content;
@@ -229,9 +242,28 @@ Make the teardown technically accurate for this specific product. Use real compo
           throw new Error("Empty response from LLM");
         }
 
-        // Parse the JSON response
-        const analysis: AnalysisResult = JSON.parse(content);
+        // Parse with robust JSON extraction
+        const analysis: AnalysisResult = extractJSON(content);
         
+        // Validate essential fields exist
+        if (!analysis.teardownTree || !analysis.teardownTree.children) {
+          throw new Error("Invalid analysis: missing teardown tree");
+        }
+
+        // Ensure defaults for optional numeric fields
+        analysis.assemblyCount = analysis.assemblyCount || analysis.teardownTree.children.length;
+        analysis.componentCount = analysis.componentCount || countNodes(analysis.teardownTree);
+        analysis.tradingSellablePartsTotal = analysis.tradingSellablePartsTotal || 
+          (analysis.tradingSellableParts || []).reduce((s: number, p: any) => s + (p.subtotal || 0), 0);
+        analysis.tradingSellablePartsBatch = analysis.tradingSellablePartsBatch || analysis.tradingSellablePartsTotal;
+        analysis.rawMaterialTotal = analysis.rawMaterialTotal || 
+          (analysis.rawMaterialRecovery || []).reduce((s: number, r: any) => s + (r.revenue || 0), 0);
+        analysis.rawMaterialBatch = analysis.rawMaterialBatch || analysis.rawMaterialTotal;
+        analysis.totalCostBatch = analysis.totalCostBatch || 
+          (analysis.costBreakdown || []).reduce((s: number, c: any) => s + (c.totalCost || 0), 0);
+        analysis.totalCostPerUnit = analysis.totalCostPerUnit || 
+          (analysis.units ? analysis.totalCostBatch / analysis.units : 0);
+
         return {
           success: true as const,
           data: analysis,
@@ -242,3 +274,14 @@ Make the teardown technically accurate for this specific product. Use real compo
       }
     }),
 });
+
+/** Count all nodes in a teardown tree */
+function countNodes(node: any): number {
+  let count = 1;
+  if (node.children) {
+    for (const child of node.children) {
+      count += countNodes(child);
+    }
+  }
+  return count;
+}

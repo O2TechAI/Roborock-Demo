@@ -41,3 +41,16 @@
 - [x] Write vitest tests for AI analysis endpoint (7 tests passing)
 - [x] Test full flow end-to-end
 - [x] Save checkpoint
+
+## Phase 10: Horizontal Tree Layout + Deeper Teardown
+- [x] Deepen Roborock S7 teardown tree with more sub-component tiers (4-5 levels)
+- [x] Add realistic material breakdowns at leaf level (e.g., motor coil → copper windings, magnets, bearings)
+- [x] Ensure all disposal classifications are realistic (tradable, raw-material, hazmat, destroy-brand)
+- [x] Rebuild TeardownTree component as horizontal left-to-right layout (Option B)
+- [x] Add expand/collapse with child count badges
+- [x] Add status badges (TRADABLE / RAW MAT / HAZMAT / DESTROY) on right edge
+- [x] Update sellable parts table with revised pricing from deeper components
+- [x] Update raw material recovery table with revised weights and values
+- [x] Update cost breakdown and deal summaries accordingly
+- [x] Update AI prompt for deeper tree generation (3-4 levels for AI-analyzed products)
+- [x] Run tests and save checkpoint (7 tests passing)

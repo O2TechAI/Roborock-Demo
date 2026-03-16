@@ -1,9 +1,10 @@
 /**
- * TeardownTree — Redesigned for new data model
- * 
- * Shows the physical teardown hierarchy with status badges.
- * Status colors differ by mode context but tree structure is shared.
- * Light background, professional styling.
+ * TeardownTree — Horizontal Left-to-Right Layout (Option B)
+ *
+ * Root on the left, assemblies stack vertically, children flow rightward.
+ * Collapsed branches show child count badges (+N).
+ * Status badges (TRADABLE / RAW MAT / HAZMAT / DESTROY) on the right edge.
+ * Pan & zoom support.
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
@@ -12,212 +13,299 @@ import { TeardownNode, ModeType, DisposalStatus } from '@/lib/demoData';
 import {
   Cpu, Battery, Cog, Droplets, Box, CircuitBoard,
   Wifi, Radar, Zap, Cable, ChevronDown, ChevronRight,
-  Recycle, X as XIcon, ShieldAlert, Package, Truck, AlertTriangle
+  Recycle, X as XIcon, ShieldAlert, Package, AlertTriangle
 } from 'lucide-react';
 
-const statusConfig: Record<DisposalStatus, { label: string; bg: string; text: string; icon: React.ReactNode }> = {
-  'destroy-brand': { label: 'DESTROY - Brand/IP', bg: '#fef2f2', text: '#991b1b', icon: <ShieldAlert className="w-2.5 h-2.5" /> },
-  'raw-material': { label: 'RAW MATERIAL', bg: '#eff6ff', text: '#1e40af', icon: <Recycle className="w-2.5 h-2.5" /> },
-  'raw-material-hazmat': { label: 'RAW MATERIAL - Hazmat', bg: '#fef9c3', text: '#854d0e', icon: <AlertTriangle className="w-2.5 h-2.5" /> },
-  'third-party': { label: '3RD PARTY / TRADABLE', bg: '#ecfdf5', text: '#065f46', icon: <Package className="w-2.5 h-2.5" /> },
-  'non-recyclable': { label: 'NON-RECYCLABLE', bg: '#f1f5f9', text: '#64748b', icon: <XIcon className="w-2.5 h-2.5" /> },
+// ── Status configuration ──
+
+const statusConfig: Record<DisposalStatus, { label: string; shortLabel: string; bg: string; text: string; border: string; icon: React.ReactNode }> = {
+  'destroy-brand': {
+    label: 'DESTROY - Brand/IP', shortLabel: 'DESTROY',
+    bg: '#fef2f2', text: '#991b1b', border: '#fecaca',
+    icon: <ShieldAlert className="w-2.5 h-2.5" />,
+  },
+  'raw-material': {
+    label: 'RAW MATERIAL', shortLabel: 'RAW MAT',
+    bg: '#eff6ff', text: '#1e40af', border: '#bfdbfe',
+    icon: <Recycle className="w-2.5 h-2.5" />,
+  },
+  'raw-material-hazmat': {
+    label: 'HAZMAT', shortLabel: 'HAZMAT',
+    bg: '#fef9c3', text: '#854d0e', border: '#fde68a',
+    icon: <AlertTriangle className="w-2.5 h-2.5" />,
+  },
+  'third-party': {
+    label: 'TRADABLE', shortLabel: 'TRADABLE',
+    bg: '#ecfdf5', text: '#065f46', border: '#a7f3d0',
+    icon: <Package className="w-2.5 h-2.5" />,
+  },
+  'non-recyclable': {
+    label: 'NON-RECYCLABLE', shortLabel: 'N/R',
+    bg: '#f1f5f9', text: '#64748b', border: '#e2e8f0',
+    icon: <XIcon className="w-2.5 h-2.5" />,
+  },
 };
 
 function getStatusForMode(node: TeardownNode, mode: ModeType): DisposalStatus {
-  // In service fee mode, third-party items become raw-material (no resale)
-  if (mode === 'service' && node.status === 'third-party') {
-    return 'raw-material';
-  }
+  if (mode === 'service' && node.status === 'third-party') return 'raw-material';
   return node.status;
 }
 
-function StatusBadge({ status }: { status: DisposalStatus }) {
+function StatusBadge({ status, compact }: { status: DisposalStatus; compact?: boolean }) {
   const config = statusConfig[status];
   return (
     <span
-      className="inline-flex items-center gap-1 text-[8px] font-semibold px-1.5 py-0.5 rounded-full uppercase tracking-wide"
-      style={{ backgroundColor: config.bg, color: config.text }}
+      className="inline-flex items-center gap-0.5 font-semibold px-1.5 py-0.5 rounded-full uppercase tracking-wide whitespace-nowrap"
+      style={{
+        fontSize: compact ? 7 : 8,
+        backgroundColor: config.bg,
+        color: config.text,
+        border: `1px solid ${config.border}`,
+      }}
     >
       {config.icon}
-      {config.label}
+      {compact ? config.shortLabel : config.label}
     </span>
   );
 }
 
+// ── Node icon helper ──
+
 function getNodeIcon(node: TeardownNode): React.ReactNode {
   const id = node.id;
-  if (id === 'root') return <Box className="w-4 h-4" />;
-  if (id.includes('top-') || id.includes('cover')) return <Box className="w-3.5 h-3.5" />;
-  if (id.includes('lidar')) return <Radar className="w-3.5 h-3.5" />;
-  if (id.includes('sensor') || id.includes('cliff') || id.includes('bumper')) return <Radar className="w-3.5 h-3.5" />;
-  if (id.includes('bottom') || id.includes('chassis') || id.includes('bracket') || id.includes('metal')) return <Box className="w-3.5 h-3.5" />;
-  if (id.includes('power') || id.includes('battery') || id.includes('bms')) return <Battery className="w-3.5 h-3.5" />;
-  if (id.includes('drive') || id.includes('motor') || id.includes('wheel') || id.includes('gear') || id.includes('shaft') || id.includes('brush-motor') || id.includes('side-brush')) return <Cog className="w-3.5 h-3.5" />;
-  if (id.includes('clean') || id.includes('suction') || id.includes('dust') || id.includes('hepa') || id.includes('roller') || id.includes('rubber') || id.includes('brush-frame')) return <Droplets className="w-3.5 h-3.5" />;
-  if (id.includes('control') || id.includes('pcb') || id.includes('wiring') || id.includes('harness')) return <CircuitBoard className="w-3.5 h-3.5" />;
-  return <Box className="w-3.5 h-3.5" />;
+  const cls = 'w-3 h-3';
+  if (id === 'root') return <Box className="w-3.5 h-3.5" />;
+  if (id.includes('lidar') || id.includes('sensor') || id.includes('cliff') || id.includes('bumper') || id.includes('carpet') || id.includes('wall')) return <Radar className={cls} />;
+  if (id.includes('power') || id.includes('battery') || id.includes('bms') || id.includes('cell') || id.includes('charging')) return <Battery className={cls} />;
+  if (id.includes('drive') || id.includes('motor') || id.includes('wheel') || id.includes('gear') || id.includes('shaft') || id.includes('brush-motor') || id.includes('side-brush') || id.includes('caster') || id.includes('impeller') || id.includes('bldc') || id.includes('lra')) return <Cog className={cls} />;
+  if (id.includes('clean') || id.includes('suction') || id.includes('dust') || id.includes('hepa') || id.includes('roller') || id.includes('rubber') || id.includes('brush') || id.includes('mop')) return <Droplets className={cls} />;
+  if (id.includes('control') || id.includes('pcb') || id.includes('wiring') || id.includes('harness') || id.includes('wifi') || id.includes('led') || id.includes('button') || id.includes('speaker') || id.includes('soc') || id.includes('ram') || id.includes('flash')) return <CircuitBoard className={cls} />;
+  if (id.includes('top') || id.includes('cover') || id.includes('chassis') || id.includes('bottom') || id.includes('metal') || id.includes('screw') || id.includes('aluminum')) return <Box className={cls} />;
+  return <Box className={cls} />;
 }
 
-interface TreeNodeProps {
+// ── Count descendants ──
+
+function countDescendants(node: TeardownNode): number {
+  if (!node.children) return 0;
+  let count = node.children.length;
+  for (const child of node.children) {
+    count += countDescendants(child);
+  }
+  return count;
+}
+
+// ── Horizontal tree node ──
+
+interface HNodeProps {
   node: TeardownNode;
+  mode: ModeType;
   depth: number;
   index: number;
-  mode: ModeType;
-  onHover: (node: TeardownNode | null) => void;
-  hoveredNode: TeardownNode | null;
+  onSelect: (node: TeardownNode | null) => void;
+  selectedNode: TeardownNode | null;
+  defaultExpanded?: boolean;
 }
 
-function TreeNodeCard({ node, depth, index, mode, onHover, hoveredNode }: TreeNodeProps) {
-  const [expanded, setExpanded] = useState(depth === 0);
+function HorizontalNode({ node, mode, depth, index, onSelect, selectedNode, defaultExpanded }: HNodeProps) {
+  const [expanded, setExpanded] = useState(defaultExpanded ?? depth < 1);
   const hasChildren = node.children && node.children.length > 0;
-  const isHovered = hoveredNode?.id === node.id;
   const isRoot = node.category === 'root';
-  const isAssembly = node.category === 'assembly' || node.category === 'subassembly';
+  const isAssembly = node.category === 'assembly';
+  const isSubassembly = node.category === 'subassembly';
+  const isSelected = selectedNode?.id === node.id;
   const effectiveStatus = getStatusForMode(node, mode);
+  const descendantCount = hasChildren ? countDescendants(node) : 0;
 
   const accentColor = mode === 'service' ? '#2563eb' : '#059669';
-  const accentLight = mode === 'service' ? '#dbeafe' : '#d1fae5';
-  const accentMid = mode === 'service' ? '#93c5fd' : '#6ee7b7';
+
+  // Determine node styling based on depth/category
+  let bgColor = '#ffffff';
+  let borderColor = '#e2e8f0';
+  let labelSize = 11;
+  let paddingY = 'py-1.5';
+  let paddingX = 'px-2.5';
+
+  if (isRoot) {
+    bgColor = mode === 'service' ? '#eff6ff' : '#ecfdf5';
+    borderColor = accentColor;
+    labelSize = 13;
+    paddingY = 'py-2';
+    paddingX = 'px-3';
+  } else if (isAssembly) {
+    bgColor = '#f8fafc';
+    borderColor = '#cbd5e1';
+    labelSize = 11;
+    paddingY = 'py-1.5';
+    paddingX = 'px-2.5';
+  } else if (isSubassembly) {
+    bgColor = '#fafbfc';
+    borderColor = '#e2e8f0';
+    labelSize = 10;
+  }
+
+  if (isSelected) {
+    borderColor = accentColor;
+    bgColor = mode === 'service' ? '#eff6ff' : '#ecfdf5';
+  }
 
   return (
-    <div className="flex flex-col items-center">
+    <div className="flex items-start">
+      {/* This node */}
       <motion.div
-        initial={{ opacity: 0, y: 12, scale: 0.96 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.35, delay: depth * 0.1 + index * 0.04, ease: [0.25, 0.46, 0.45, 0.94] }}
-        className={`relative ${isRoot ? 'min-w-[220px]' : isAssembly ? 'min-w-[160px]' : 'min-w-[140px]'}`}
-        onMouseEnter={() => onHover(node)}
-        onMouseLeave={() => onHover(null)}
+        initial={{ opacity: 0, x: -8 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.25, delay: depth * 0.05 + index * 0.02 }}
+        className={`flex flex-col ${paddingY} ${paddingX} rounded-lg border transition-all duration-150 flex-shrink-0`}
+        style={{
+          backgroundColor: bgColor,
+          borderColor: borderColor,
+          boxShadow: isSelected ? `0 0 0 1px ${accentColor}40, 0 2px 8px ${accentColor}10` : '0 1px 2px rgba(0,0,0,0.03)',
+          minWidth: isRoot ? 180 : isAssembly ? 155 : 130,
+          maxWidth: isRoot ? 200 : isAssembly ? 180 : 165,
+          cursor: 'pointer',
+        }}
+        onClick={() => onSelect(isSelected ? null : node)}
+        onMouseEnter={() => onSelect(node)}
       >
-        <div
-          className="relative rounded-lg border px-3 py-2 transition-all duration-200"
-          style={{
-            backgroundColor: isRoot ? accentLight : isHovered ? '#f8fafc' : '#ffffff',
-            borderColor: isRoot ? accentMid : isHovered ? accentMid : '#e2e8f0',
-            boxShadow: isRoot
-              ? `0 0 0 1px ${accentMid}, 0 4px 12px ${accentColor}12`
-              : isHovered ? '0 2px 8px rgba(0,0,0,0.06)' : '0 1px 2px rgba(0,0,0,0.03)',
-          }}
-        >
-          {/* Top accent for root */}
-          {isRoot && (
-            <div
-              className="absolute top-0 left-3 right-3 h-[2px] rounded-full"
-              style={{ background: `linear-gradient(to right, transparent, ${accentColor}, transparent)` }}
-            />
-          )}
-
-          <div className="flex items-center gap-2">
-            <div
-              className="flex items-center justify-center rounded-md flex-shrink-0"
-              style={{
-                width: isRoot ? 28 : 22,
-                height: isRoot ? 28 : 22,
-                backgroundColor: isRoot ? `${accentColor}18` : '#f1f5f9',
-                color: isRoot ? accentColor : '#64748b',
-              }}
+        <div className="flex items-center gap-1.5">
+          {/* Expand toggle */}
+          {hasChildren && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
+              className="flex items-center justify-center w-4 h-4 rounded hover:bg-black/5 transition-colors flex-shrink-0"
+              style={{ color: '#94a3b8' }}
             >
-              {getNodeIcon(node)}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div
-                className="font-medium truncate"
-                style={{
-                  fontSize: isRoot ? 13 : isAssembly ? 12 : 11,
-                  fontFamily: isRoot ? "'Space Grotesk', system-ui" : undefined,
-                  color: isRoot ? accentColor : '#1e293b',
-                }}
-              >
-                {node.label}
-              </div>
-              {node.weight && (
-                <div className="text-[9px] font-mono" style={{ color: '#94a3b8' }}>
-                  {node.weight}
-                  {isRoot && ' x 500 units'}
-                </div>
-              )}
-            </div>
-            {hasChildren && (
-              <button
-                onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
-                className="flex items-center justify-center w-5 h-5 rounded hover:bg-gray-100 transition-colors flex-shrink-0"
-                style={{ color: '#94a3b8' }}
-              >
-                {expanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-              </button>
-            )}
+              {expanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+            </button>
+          )}
+          {!hasChildren && <div className="w-4" />}
+
+          {/* Icon */}
+          <div
+            className="flex items-center justify-center w-5 h-5 rounded flex-shrink-0"
+            style={{
+              backgroundColor: isRoot ? `${accentColor}15` : '#f1f5f9',
+              color: isRoot ? accentColor : '#64748b',
+            }}
+          >
+            {getNodeIcon(node)}
           </div>
 
-          {/* Status badge + value for leaf nodes */}
-          {!isRoot && !isAssembly && (
-            <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
-              <StatusBadge status={effectiveStatus} />
-              {mode === 'trading' && node.sellableValue && node.status === 'third-party' && (
-                <span className="text-[9px] font-mono font-semibold" style={{ color: '#059669' }}>
-                  ${node.sellableValue.toFixed(2)}
-                </span>
-              )}
+          {/* Label */}
+          <div className="flex-1 min-w-0">
+            <div
+              className="font-medium truncate leading-tight"
+              style={{
+                fontSize: labelSize,
+                color: isRoot ? accentColor : '#1e293b',
+                fontFamily: isRoot ? "'Space Grotesk', system-ui" : undefined,
+              }}
+            >
+              {node.label}
             </div>
-          )}
+          </div>
 
-          {/* Material info */}
-          {node.material && !isRoot && (
-            <div className="mt-1">
-              <span className="text-[8px] font-mono px-1 py-0.5 rounded" style={{ backgroundColor: '#f8fafc', color: '#64748b' }}>
-                {node.material}
-              </span>
-            </div>
+          {/* Collapsed child count badge */}
+          {hasChildren && !expanded && (
+            <span
+              className="text-[8px] font-bold px-1 py-0.5 rounded-full flex-shrink-0"
+              style={{ backgroundColor: '#f1f5f9', color: '#64748b', border: '1px solid #e2e8f0' }}
+            >
+              +{descendantCount}
+            </span>
           )}
         </div>
+
+        {/* Weight + material line */}
+        {(node.weight || node.material) && (
+          <div className="mt-0.5 flex items-center gap-1.5 flex-wrap">
+            {node.weight && (
+              <span className="text-[8px] font-mono" style={{ color: '#94a3b8' }}>
+                {node.weight}{isRoot ? ' × 500' : ''}
+              </span>
+            )}
+            {node.material && !isRoot && !isAssembly && (
+              <span className="text-[8px] font-mono truncate" style={{ color: '#94a3b8' }}>
+                {node.material}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Status badge for non-root, non-assembly nodes */}
+        {!isRoot && (
+          <div className="mt-1 flex items-center gap-1 flex-wrap">
+            <StatusBadge status={effectiveStatus} compact={depth > 2} />
+            {mode === 'trading' && node.sellableValue && node.status === 'third-party' && (
+              <span className="text-[9px] font-mono font-semibold" style={{ color: '#059669' }}>
+                ${node.sellableValue.toFixed(2)}
+              </span>
+            )}
+          </div>
+        )}
       </motion.div>
 
-      {/* Children */}
+      {/* Horizontal connector + children */}
       <AnimatePresence>
         {hasChildren && expanded && (
           <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.3 }}
-            className="flex flex-col items-center"
+            initial={{ opacity: 0, width: 0 }}
+            animate={{ opacity: 1, width: 'auto' }}
+            exit={{ opacity: 0, width: 0 }}
+            transition={{ duration: 0.2 }}
+            className="flex items-center"
           >
-            <motion.div
-              initial={{ scaleY: 0 }}
-              animate={{ scaleY: 1 }}
-              transition={{ duration: 0.2, delay: 0.1 }}
-              className="w-px h-4 origin-top"
-              style={{ background: `linear-gradient(to bottom, ${accentMid}, ${accentLight})` }}
-            />
-            <div className="relative flex items-start gap-2.5">
+            {/* Horizontal line from parent to children */}
+            <div className="flex items-center flex-shrink-0">
+              <motion.div
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                transition={{ duration: 0.15 }}
+                className="h-px origin-left"
+                style={{
+                  width: 20,
+                  backgroundColor: depth === 0 ? accentColor : '#cbd5e1',
+                }}
+              />
+            </div>
+
+            {/* Vertical rail + children */}
+            <div className="relative flex flex-col">
+              {/* Vertical connector line */}
               {node.children!.length > 1 && (
-                <motion.div
-                  initial={{ scaleX: 0 }}
-                  animate={{ scaleX: 1 }}
-                  transition={{ duration: 0.3, delay: 0.15 }}
-                  className="absolute top-0 h-px"
+                <div
+                  className="absolute left-0 w-px"
                   style={{
-                    left: `calc(100% / ${node.children!.length * 2})`,
-                    right: `calc(100% / ${node.children!.length * 2})`,
-                    backgroundColor: accentMid,
+                    top: node.children!.length > 0 ? 16 : 0,
+                    bottom: node.children!.length > 0 ? 16 : 0,
+                    backgroundColor: depth === 0 ? `${accentColor}50` : '#e2e8f0',
                   }}
                 />
               )}
+
               {node.children!.map((child, i) => (
-                <div key={child.id} className="flex flex-col items-center">
+                <div key={child.id} className="flex items-start" style={{ marginTop: i === 0 ? 0 : 4 }}>
+                  {/* Horizontal branch line to child */}
                   <motion.div
-                    initial={{ scaleY: 0 }}
-                    animate={{ scaleY: 1 }}
-                    transition={{ duration: 0.15, delay: 0.2 + i * 0.03 }}
-                    className="w-px h-3 origin-top"
-                    style={{ backgroundColor: accentMid }}
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: 1 }}
+                    transition={{ duration: 0.1, delay: i * 0.02 }}
+                    className="flex-shrink-0 origin-left"
+                    style={{
+                      width: 16,
+                      height: 1,
+                      backgroundColor: depth === 0 ? `${accentColor}50` : '#e2e8f0',
+                      marginTop: 16,
+                    }}
                   />
-                  <TreeNodeCard
+                  <HorizontalNode
                     node={child}
+                    mode={mode}
                     depth={depth + 1}
                     index={i}
-                    mode={mode}
-                    onHover={onHover}
-                    hoveredNode={hoveredNode}
+                    onSelect={onSelect}
+                    selectedNode={selectedNode}
                   />
                 </div>
               ))}
@@ -229,15 +317,17 @@ function TreeNodeCard({ node, depth, index, mode, onHover, hoveredNode }: TreeNo
   );
 }
 
+// ── Main component ──
+
 interface TeardownTreeProps {
   data: TeardownNode;
   mode: ModeType;
 }
 
 export default function TeardownTree({ data, mode }: TeardownTreeProps) {
-  const [hoveredNode, setHoveredNode] = useState<TeardownNode | null>(null);
+  const [selectedNode, setSelectedNode] = useState<TeardownNode | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(0.78);
+  const [scale, setScale] = useState(0.82);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -245,7 +335,7 @@ export default function TeardownTree({ data, mode }: TeardownTreeProps) {
   const handleWheel = useCallback((e: WheelEvent) => {
     e.preventDefault();
     const delta = e.deltaY > 0 ? -0.05 : 0.05;
-    setScale(prev => Math.max(0.25, Math.min(1.5, prev + delta)));
+    setScale(prev => Math.max(0.2, Math.min(2.0, prev + delta)));
   }, []);
 
   useEffect(() => {
@@ -283,20 +373,21 @@ export default function TeardownTree({ data, mode }: TeardownTreeProps) {
       onMouseLeave={handleMouseUp}
     >
       <div
-        className="flex justify-center pt-6 pb-20 px-8 w-max min-w-full"
+        className="p-6 w-max"
         style={{
           transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
-          transformOrigin: 'top center',
+          transformOrigin: 'top left',
           cursor: isDragging ? 'grabbing' : 'grab',
         }}
       >
-        <TreeNodeCard
+        <HorizontalNode
           node={data}
+          mode={mode}
           depth={0}
           index={0}
-          mode={mode}
-          onHover={setHoveredNode}
-          hoveredNode={hoveredNode}
+          onSelect={setSelectedNode}
+          selectedNode={selectedNode}
+          defaultExpanded
         />
       </div>
 
@@ -306,17 +397,17 @@ export default function TeardownTree({ data, mode }: TeardownTreeProps) {
         style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
       >
         <button
-          onClick={() => setScale(prev => Math.max(0.25, prev - 0.1))}
+          onClick={() => setScale(prev => Math.max(0.2, prev - 0.1))}
           className="w-6 h-6 flex items-center justify-center rounded hover:bg-gray-50 text-sm"
           style={{ color: '#64748b' }}
         >
-          -
+          −
         </button>
         <span className="text-[9px] font-mono w-9 text-center" style={{ color: '#94a3b8' }}>
           {Math.round(scale * 100)}%
         </span>
         <button
-          onClick={() => setScale(prev => Math.min(1.5, prev + 0.1))}
+          onClick={() => setScale(prev => Math.min(2.0, prev + 0.1))}
           className="w-6 h-6 flex items-center justify-center rounded hover:bg-gray-50 text-sm"
           style={{ color: '#64748b' }}
         >
@@ -324,14 +415,14 @@ export default function TeardownTree({ data, mode }: TeardownTreeProps) {
         </button>
       </div>
 
-      {/* Hovered node detail */}
+      {/* Selected node detail panel */}
       <AnimatePresence>
-        {hoveredNode && hoveredNode.category !== 'root' && hoveredNode.category !== 'assembly' && (
+        {selectedNode && selectedNode.category !== 'root' && (
           <motion.div
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 4 }}
-            className="absolute bottom-3 left-3 max-w-[260px] rounded-lg p-3"
+            className="absolute bottom-3 left-3 max-w-[280px] rounded-lg p-3"
             style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
           >
             <div className="flex items-center gap-2 mb-2">
@@ -339,31 +430,37 @@ export default function TeardownTree({ data, mode }: TeardownTreeProps) {
                 className="w-5 h-5 rounded flex items-center justify-center"
                 style={{ backgroundColor: accentLight, color: accentColor }}
               >
-                {getNodeIcon(hoveredNode)}
+                {getNodeIcon(selectedNode)}
               </div>
-              <span className="text-[12px] font-medium" style={{ color: '#1e293b' }}>{hoveredNode.label}</span>
+              <span className="text-[12px] font-medium" style={{ color: '#1e293b' }}>{selectedNode.label}</span>
             </div>
             <div className="space-y-1 text-[10px]">
-              {hoveredNode.weight && (
+              {selectedNode.weight && (
                 <div className="flex justify-between">
                   <span style={{ color: '#94a3b8' }}>Weight</span>
-                  <span className="font-mono" style={{ color: '#475569' }}>{hoveredNode.weight}</span>
+                  <span className="font-mono" style={{ color: '#475569' }}>{selectedNode.weight}</span>
                 </div>
               )}
-              {hoveredNode.material && (
+              {selectedNode.material && (
                 <div className="flex justify-between">
                   <span style={{ color: '#94a3b8' }}>Material</span>
-                  <span className="font-mono" style={{ color: '#475569' }}>{hoveredNode.material}</span>
+                  <span className="font-mono text-right max-w-[160px]" style={{ color: '#475569' }}>{selectedNode.material}</span>
                 </div>
               )}
               <div className="flex justify-between items-center">
                 <span style={{ color: '#94a3b8' }}>Status</span>
-                <StatusBadge status={getStatusForMode(hoveredNode, mode)} />
+                <StatusBadge status={getStatusForMode(selectedNode, mode)} />
               </div>
-              {mode === 'trading' && hoveredNode.sellableValue && hoveredNode.status === 'third-party' && (
+              {selectedNode.children && selectedNode.children.length > 0 && (
+                <div className="flex justify-between">
+                  <span style={{ color: '#94a3b8' }}>Sub-components</span>
+                  <span className="font-mono" style={{ color: '#475569' }}>{countDescendants(selectedNode)}</span>
+                </div>
+              )}
+              {mode === 'trading' && selectedNode.sellableValue && selectedNode.status === 'third-party' && (
                 <div className="flex justify-between">
                   <span style={{ color: '#94a3b8' }}>Sellable Value</span>
-                  <span className="font-mono font-semibold" style={{ color: '#059669' }}>${hoveredNode.sellableValue.toFixed(2)}</span>
+                  <span className="font-mono font-semibold" style={{ color: '#059669' }}>${selectedNode.sellableValue.toFixed(2)}</span>
                 </div>
               )}
             </div>
