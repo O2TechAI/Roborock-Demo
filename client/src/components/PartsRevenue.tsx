@@ -27,6 +27,7 @@ import {
   serviceFeeProposal as defaultServiceFee,
   serviceFeeDealSummary as defaultServiceDeal,
   tradingDealSummary as defaultTradingDeal,
+  tradingBuyoutRecommendation as defaultBuyoutRec,
 } from '@/lib/demoData';
 
 interface PartsRevenueProps {
@@ -266,12 +267,22 @@ function CostBreakdownTab({ data, totalPerUnit, totalBatch }: {
 }
 
 /* ---- Tab: Deal Summary ---- */
-function DealSummaryTab({ mode, data }: {
+function DealSummaryTab({ mode, data, buyoutRecommendation }: {
   mode: ModeType;
   data: { item: string; total: number; isNegative?: boolean }[];
+  buyoutRecommendation?: { viable: boolean; maxBuyoutPrice: number; maxBuyoutPerUnit: number; reason: string };
 }) {
   const accentColor = mode === 'service' ? '#2563eb' : '#059669';
-  const lastRow = data[data.length - 1];
+  // Filter out the recommendation row for table display
+  const tableData = data.filter(row => !row.item.startsWith('\u26a0\ufe0f'));
+  const hasRecommendation = data.some(row => row.item.startsWith('\u26a0\ufe0f'));
+  
+  // Find the key financial row (Net Before Buyout, Net Position, or Total Profit)
+  const netRow = tableData.find(row => 
+    row.item.includes('Net Before Buyout') || row.item.includes('Net Position') || row.item.includes('Net Profit') || row.item.includes('Total Profit')
+  );
+  const lastRow = tableData[tableData.length - 1];
+  const displayRow = netRow || lastRow;
 
   return (
     <div>
@@ -283,14 +294,14 @@ function DealSummaryTab({ mode, data }: {
           </tr>
         </thead>
         <tbody>
-          {data.map((row, i) => {
-            const isTotal = i === data.length - 1;
-            const isSub = row.item.startsWith('Total Revenue') || row.item.startsWith('Total Profit') || row.item.startsWith('Net Position') || row.item.startsWith('Total Cost');
+          {tableData.map((row, i) => {
+            const isLast = i === tableData.length - 1;
+            const isSub = row.item.includes('Total') || row.item.includes('Net') || row.item.includes('Max Buyout');
             return (
-              <tr key={i} style={isTotal ? { backgroundColor: '#f8fafc' } : isSub ? { backgroundColor: '#fafbfc' } : {}}>
-                <Td bold={isTotal || isSub}>{row.item}</Td>
-                <Td align="right" bold={isTotal || isSub}>
-                  <span style={{ color: row.isNegative ? '#dc2626' : isTotal ? accentColor : '#334155' }}>
+              <tr key={i} style={isLast ? { backgroundColor: '#f8fafc' } : isSub ? { backgroundColor: '#fafbfc' } : {}}>
+                <Td bold={isLast || isSub}>{row.item}</Td>
+                <Td align="right" bold={isLast || isSub}>
+                  <span style={{ color: row.isNegative ? '#dc2626' : isLast ? accentColor : '#334155' }}>
                     {row.isNegative ? `(${formatCurrency(Math.abs(row.total))})` : formatCurrency(row.total)}
                   </span>
                 </Td>
@@ -299,22 +310,67 @@ function DealSummaryTab({ mode, data }: {
           })}
         </tbody>
       </TableWrapper>
-      <div className="mt-4 p-4 rounded-lg" style={{
-        backgroundColor: lastRow.total >= 0 ? '#f0fdf4' : '#fef2f2',
-        border: `1px solid ${lastRow.total >= 0 ? '#bbf7d0' : '#fecaca'}`,
-      }}>
-        <div className="text-center">
-          <div className="text-[11px] uppercase tracking-wider mb-1" style={{ color: '#64748b' }}>
-            {mode === 'service' ? 'Total Profit' : 'Net Position'}
-          </div>
-          <div className="text-[24px] font-bold font-mono" style={{
-            color: lastRow.total >= 0 ? '#059669' : '#dc2626',
-            fontFamily: "'Space Grotesk', system-ui",
-          }}>
-            {lastRow.total < 0 ? '-' : ''}${Math.abs(lastRow.total).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+
+      {/* Smart Buyout Recommendation */}
+      {mode === 'trading' && buyoutRecommendation && (
+        <div className="mt-4 p-4 rounded-lg" style={{
+          backgroundColor: buyoutRecommendation.viable ? '#f0fdf4' : '#fef2f2',
+          border: `1px solid ${buyoutRecommendation.viable ? '#bbf7d0' : '#fecaca'}`,
+        }}>
+          <div className="text-center">
+            {buyoutRecommendation.viable ? (
+              <>
+                <div className="text-[11px] uppercase tracking-wider mb-1" style={{ color: '#065f46' }}>
+                  Proposed Buyout Price to Client
+                </div>
+                <div className="text-[24px] font-bold font-mono" style={{
+                  color: '#059669',
+                  fontFamily: "'Space Grotesk', system-ui",
+                }}>
+                  ${buyoutRecommendation.maxBuyoutPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                </div>
+                <div className="text-[11px] mt-1" style={{ color: '#64748b' }}>
+                  ${buyoutRecommendation.maxBuyoutPerUnit.toFixed(2)} per unit (15% target margin)
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-[13px] font-bold mb-2" style={{ color: '#dc2626', fontFamily: "'Space Grotesk', system-ui" }}>
+                  \u26a0\ufe0f DO NOT BUY
+                </div>
+                <div className="text-[11px] leading-relaxed" style={{ color: '#991b1b' }}>
+                  {buyoutRecommendation.reason}
+                </div>
+                <div className="mt-3 pt-3" style={{ borderTop: '1px solid #fecaca' }}>
+                  <div className="text-[11px] font-medium" style={{ color: '#065f46' }}>
+                    \u2705 Recommended: Switch to Service Fee mode
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Service Fee mode profit display */}
+      {mode === 'service' && (
+        <div className="mt-4 p-4 rounded-lg" style={{
+          backgroundColor: displayRow.total >= 0 ? '#f0fdf4' : '#fef2f2',
+          border: `1px solid ${displayRow.total >= 0 ? '#bbf7d0' : '#fecaca'}`,
+        }}>
+          <div className="text-center">
+            <div className="text-[11px] uppercase tracking-wider mb-1" style={{ color: '#64748b' }}>
+              Total Profit
+            </div>
+            <div className="text-[24px] font-bold font-mono" style={{
+              color: displayRow.total >= 0 ? '#059669' : '#dc2626',
+              fontFamily: "'Space Grotesk', system-ui",
+            }}>
+              {displayRow.total < 0 ? '-' : ''}${Math.abs(displayRow.total).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -337,6 +393,32 @@ export default function PartsRevenue({ mode, analysisData }: PartsRevenueProps) 
   const serviceDeal = analysisData?.serviceFeeDealSummary ?? defaultServiceDeal;
   const tradingDeal = analysisData?.tradingDealSummary ?? defaultTradingDeal;
   const units = analysisData?.units ?? 500;
+
+  // Compute smart buyout recommendation
+  const buyoutRecommendation = useMemo(() => {
+    if (!analysisData) return defaultBuyoutRec;
+    const totalRevenue = (analysisData.tradingSellablePartsBatch || 0) + (analysisData.rawMaterialBatch || 0);
+    const totalCost = analysisData.totalCostBatch || 0;
+    const targetMargin = 0.15;
+    const maxBuyout = totalRevenue - totalCost - (totalRevenue * targetMargin);
+    if (maxBuyout <= 0) {
+      return {
+        viable: false,
+        maxBuyoutPrice: 0,
+        maxBuyoutPerUnit: 0,
+        reason: `Total recoverable revenue ($${totalRevenue.toLocaleString()}) minus processing cost ($${totalCost.toLocaleString()}) leaves insufficient margin. Any buyout price would result in a loss. Recommend Service Fee mode instead.`,
+        targetMargin,
+      };
+    }
+    const roundedBuyout = Math.floor(maxBuyout / 100) * 100; // Round down to nearest $100
+    return {
+      viable: true,
+      maxBuyoutPrice: roundedBuyout,
+      maxBuyoutPerUnit: Math.round(roundedBuyout / analysisData.units * 100) / 100,
+      reason: '',
+      targetMargin,
+    };
+  }, [analysisData]);
 
   const serviceTabs = ['Raw Materials', 'Cost Breakdown', 'Deal Summary'];
   const tradingTabs = ['Sellable Parts', 'Raw Materials', 'Total Recovery', 'Cost Breakdown', 'Deal Summary'];
@@ -398,7 +480,11 @@ export default function PartsRevenue({ mode, analysisData }: PartsRevenueProps) 
             <CostBreakdownTab data={costs} totalPerUnit={costPerUnit} totalBatch={costBatch} />
           )}
           {activeTab === 'Deal Summary' && (
-            <DealSummaryTab mode={mode} data={mode === 'service' ? serviceDeal : tradingDeal} />
+            <DealSummaryTab
+              mode={mode}
+              data={mode === 'service' ? serviceDeal : tradingDeal}
+              buyoutRecommendation={mode === 'trading' ? buyoutRecommendation : undefined}
+            />
           )}
         </motion.div>
       </div>

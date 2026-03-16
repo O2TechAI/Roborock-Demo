@@ -4,9 +4,10 @@
  * Full flow:
  * 1. Start: Mode toggle at top of chat, example queries below
  * 2. Click example or type product → calls real AI API for teardown analysis
- * 3. After AI response → right panel shows Flow Diagram / Parts Revenue tabs
- * 4. Can switch modes at any time via top toggle
- * 5. Generate Quotation button → progress bar → final quotation
+ * 3. AI shows step-by-step reasoning in chat (accumulated messages)
+ * 4. After AI response → right panel shows Flow Diagram / Parts Revenue tabs
+ * 5. Can switch modes at any time via top toggle
+ * 6. Generate Quotation button → progress bar → final quotation
  * 
  * For Roborock S7 with 500 units, uses hardcoded data for instant demo.
  * For any other product, calls the AI analysis endpoint.
@@ -18,17 +19,6 @@ import {
   ModeType, ChatMessage, ExampleQuery, TeardownNode,
   teardownTree as defaultTeardownTree,
   aiThinkingSteps, aiAnalysisResult,
-  tradingSellableParts as defaultSellableParts,
-  tradingSellablePartsTotal as defaultSellableTotal,
-  tradingSellablePartsBatch as defaultSellableBatch,
-  rawMaterialRecovery as defaultRawMaterials,
-  rawMaterialTotal as defaultRawTotal,
-  rawMaterialBatch as defaultRawBatch,
-  costBreakdown as defaultCostBreakdown,
-  totalCostPerUnit as defaultCostPerUnit,
-  totalCostBatch as defaultCostBatch,
-  serviceFeeDealSummary as defaultServiceDeal,
-  tradingDealSummary as defaultTradingDeal,
 } from '@/lib/demoData';
 import type { AnalysisResult } from '@shared/analysisTypes';
 import ChatPanel from '@/components/ChatPanel';
@@ -43,11 +33,9 @@ type RightTab = 'flow' | 'revenue';
 
 // Parse user input to extract product name and units
 function parseUserInput(text: string): { product: string; units: number } {
-  // Try to extract units from text like "Recycle 500 iPhone 15 Pro units"
   const unitsMatch = text.match(/(\d+)\s*(units?|pcs?|pieces?)/i);
   const units = unitsMatch ? parseInt(unitsMatch[1], 10) : 500;
 
-  // Try to extract product name
   let product = text
     .replace(/recycle\s*/i, '')
     .replace(/\d+\s*(units?|pcs?|pieces?)/i, '')
@@ -100,6 +88,7 @@ export default function Home() {
   }, []);
 
   // Run the default Roborock S7 thinking animation (hardcoded data)
+  // Shows accumulated thinking steps as separate messages
   const runDefaultThinkingSequence = useCallback(() => {
     setIsProcessing(true);
     setAnalysisComplete(false);
@@ -115,21 +104,18 @@ export default function Home() {
           role: 'thinking',
           content: aiThinkingSteps[step],
         };
-        setMessages(prev => {
-          const filtered = prev.filter(m => m.role !== 'thinking');
-          return [...filtered, thinkingMsg];
-        });
+        // Accumulate thinking messages (don't replace)
+        setMessages(prev => [...prev, thinkingMsg]);
         step++;
-        thinkingTimerRef.current = setTimeout(processStep, 600 + Math.random() * 400);
+        // Each step takes 1.5-2.5 seconds to simulate real analysis
+        thinkingTimerRef.current = setTimeout(processStep, 1500 + Math.random() * 1000);
       } else {
-        setMessages(prev => {
-          const filtered = prev.filter(m => m.role !== 'thinking');
-          return [...filtered, {
-            id: `result-${Date.now()}`,
-            role: 'assistant' as const,
-            content: aiAnalysisResult,
-          }];
-        });
+        // Add final result message
+        setMessages(prev => [...prev, {
+          id: `result-${Date.now()}`,
+          role: 'assistant' as const,
+          content: aiAnalysisResult,
+        }]);
         setIsProcessing(false);
         setAnalysisComplete(true);
         setRightView('analysis');
@@ -147,33 +133,30 @@ export default function Home() {
     setIsUsingDefault(false);
     setCurrentAnalysis(null);
 
-    // Show animated thinking steps
+    // Show animated thinking steps (accumulated)
     const thinkingSteps = [
-      `Identifying product: ${product}...`,
-      `Researching ${product} component database...`,
-      `Analyzing teardown topology and material composition...`,
-      `Cross-referencing component market prices (Q1 2026 spot rates)...`,
-      `Calculating raw material recovery values...`,
-      `Estimating labor costs and logistics overhead...`,
-      `Computing financial analysis for ${units} units...`,
-      `Generating teardown topology and financial analysis...`,
+      `Identifying product: ${product}. Searching component database and manufacturer specifications...`,
+      `Analyzing physical structure and material composition. Estimating unit weight and identifying major assemblies...`,
+      `Breaking down into sub-assemblies and individual components. Classifying each by disposal path: tradable parts, raw material recovery, brand destruction (IP), or non-recyclable waste...`,
+      `Cross-referencing component market prices against Q1 2026 spot rates. Calculating sellable parts value for working motors, sensors, modules, and other third-party tradable components...`,
+      `Calculating raw material recovery values: precious metals (Au, Ag, Pd) from PCBs, base metals (Cu, Al, Fe), battery cathode materials (NMC/LFP), and structural plastics (ABS, PC, PA)...`,
+      `Estimating processing costs: labor ($25/hr disassembly rate), logistics, compliance (hazmat handling, data destruction), and warehouse operations for ${units} units...`,
+      `Computing deal economics: comparing total recoverable value against processing costs. Calculating maximum profitable buyout price with 15% target margin. Evaluating Service Fee vs Trading mode viability...`,
+      `Analysis complete. Generating teardown flow diagram and financial tables...`,
     ];
 
     let step = 0;
     thinkingIntervalRef.current = setInterval(() => {
       if (step < thinkingSteps.length) {
         const thinkingMsg: ChatMessage = {
-          id: `thinking-${step}-${Date.now()}`,
+          id: `ai-thinking-${step}-${Date.now()}`,
           role: 'thinking',
           content: thinkingSteps[step],
         };
-        setMessages(prev => {
-          const filtered = prev.filter(m => m.role !== 'thinking');
-          return [...filtered, thinkingMsg];
-        });
+        setMessages(prev => [...prev, thinkingMsg]);
         step++;
       }
-    }, 2500);
+    }, 3000);
 
     try {
       const result = await analyzeMutation.mutateAsync({ product, units });
@@ -186,14 +169,11 @@ export default function Home() {
 
       if (result.success && result.data) {
         setCurrentAnalysis(result.data);
-        setMessages(prev => {
-          const filtered = prev.filter(m => m.role !== 'thinking');
-          return [...filtered, {
-            id: `result-${Date.now()}`,
-            role: 'assistant' as const,
-            content: result.data.summary,
-          }];
-        });
+        setMessages(prev => [...prev, {
+          id: `result-${Date.now()}`,
+          role: 'assistant' as const,
+          content: result.data.summary,
+        }]);
         setAnalysisComplete(true);
         setRightView('analysis');
       }
@@ -204,14 +184,11 @@ export default function Home() {
         thinkingIntervalRef.current = null;
       }
 
-      setMessages(prev => {
-        const filtered = prev.filter(m => m.role !== 'thinking');
-        return [...filtered, {
-          id: `error-${Date.now()}`,
-          role: 'assistant' as const,
-          content: `**Analysis Error**\n\nI encountered an issue analyzing "${product}". ${error.message || 'Please try again.'}\n\nYou can try:\n• Rephrasing the product name\n• Using a more specific product model\n• Trying one of the example queries`,
-        }];
-      });
+      setMessages(prev => [...prev, {
+        id: `error-${Date.now()}`,
+        role: 'assistant' as const,
+        content: `**Analysis Error**\n\nI encountered an issue analyzing "${product}". ${error.message || 'Please try again.'}\n\nYou can try:\n• Rephrasing the product name\n• Using a more specific product model\n• Trying one of the example queries`,
+      }]);
     } finally {
       setIsProcessing(false);
     }
@@ -233,7 +210,6 @@ export default function Home() {
     };
     addMessage(userMsg);
 
-    // Use default data for Roborock S7 500 units, AI for everything else
     if (isRoborockDemo(query.product, query.units)) {
       setTimeout(() => runDefaultThinkingSequence(), 300);
     } else {
@@ -291,7 +267,7 @@ export default function Home() {
       return {
         units: '500',
         weight: '1,850 kg',
-        components: '42',
+        components: '58',
         recovery: '94.2%',
         product: 'Roborock S7',
       };
@@ -356,7 +332,7 @@ export default function Home() {
       {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left panel — Chat */}
-        <div className="w-[380px] flex-shrink-0" style={{ borderRight: '1px solid #e2e8f0' }}>
+        <div className="w-[420px] flex-shrink-0" style={{ borderRight: '1px solid #e2e8f0' }}>
           <ChatPanel
             messages={messages}
             onSendMessage={handleSendMessage}

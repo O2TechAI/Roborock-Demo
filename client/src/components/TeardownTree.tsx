@@ -376,8 +376,11 @@ export default function TeardownTree({ data, mode }: TeardownTreeProps) {
         className="p-6 w-max"
         style={{
           transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
-          transformOrigin: 'top left',
+          transformOrigin: 'center left',
           cursor: isDragging ? 'grabbing' : 'grab',
+          minHeight: '100%',
+          display: 'flex',
+          alignItems: 'center',
         }}
       >
         <HorizontalNode

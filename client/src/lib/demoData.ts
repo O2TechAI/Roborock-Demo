@@ -99,29 +99,43 @@ export const exampleQueries: ExampleQuery[] = [
 // ============================================================
 
 export const aiThinkingSteps: string[] = [
-  'Identifying product: Roborock S7 Robot Vacuum...',
-  'Loading component database for Roborock S7 (3.7 kg, 7 major assemblies)...',
-  'Analyzing teardown topology: 7 assemblies, 58 sub-components identified...',
-  'Cross-referencing component market prices (Q1 2026 spot rates)...',
-  'Calculating raw material recovery values (Au, Ag, Cu, Li, Steel, ABS)...',
-  'Estimating labor costs: $25/hr, 2 units/hr disassembly rate...',
-  'Computing logistics, compliance, and warehousing overhead...',
-  'Generating teardown topology and financial analysis...',
+  'Identifying product: Roborock S7 Robot Vacuum — a mid-range autonomous floor cleaning robot manufactured by Beijing Roborock Technology Co. (est. 2014, Xiaomi ecosystem). Weight: 3.7 kg/unit. Primary materials: ABS/PC plastics, lithium-ion cells, brushless DC motors, LiDAR optics, FR4 PCBs with gold-plated contacts.',
+  'Breaking down into 7 major assemblies: (1) Top Assembly — branded ABS shell, LiDAR turret with Nidec coreless motor, laser diode, APD photodetector, PMMA lens dome; (2) Sensor System — bumper switches (Omron D2FC), cliff IR sensors (Sharp), wall-following IR, carpet ultrasonic piezo; (3) Structural Chassis — glass-filled ABS bottom plate, cold-rolled steel bumper frame, stainless spring mounts, aluminum heat sink bracket; (4) Power System — 14.4V 5200mAh Li-ion pack (4S2P 18650 cells, NMC 622 cathode), BMS with TI BQ40Z50 IC, nickel strip welding, JST wiring harness; (5) Drive & Motion — left/right Mabuchi DC drive motors with planetary gearboxes, N20 side brush motor, caster wheel assembly; (6) Cleaning & Suction — BLDC suction fan motor (Nidec), Johnson main brush motor, rubber/bristle dual roller, sonic vibration LRA mop motor, HEPA filter; (7) Control Electronics — 6-layer FR4 main PCB with application SoC, DDR3 RAM, eMMC flash, ESP32 Wi-Fi/BLE module, LED board, button panel, wiring harness.',
+  'Classifying disposal paths: 19 components tradable as third-party parts (motors, sensors, modules — tested working condition). 28 components recoverable as raw materials (ABS plastics, structural metals, PCB precious metals, copper wiring). 6 components require brand destruction for IP compliance (branded shells, firmware-bearing SoC, flash storage). 5 components non-recyclable (worn HEPA filters, rubber seals, adhesive residue).',
+  'Calculating raw material recovery: Precious metals from PCBs — Au (0.0216g/unit at $70/g = $1.51), Ag (0.086g at $0.80/g = $0.07). Base metals — Cu from windings + PCB + wiring (65g at $9/kg = $0.59), NdFeB magnets from motors (20g at $25/kg = $0.50). Battery cathode NMC 622 (96g at $8.50/kg = $0.82). Structural steel (310g at $0.20/kg), aluminum 6061 (57g at $1.80/kg). Total raw material per unit: $4.42.',
+  'Calculating sellable parts revenue: BLDC suction motor ($2.00), Mabuchi drive motors x2 ($3.00), Johnson brush motor ($1.20), LiDAR rotation motor ($1.20), side brush motor ($0.80), sonic vibration LRA ($1.00), laser diode assembly ($0.80), APD photodetector ($0.50), sensors & switches ($2.20), Wi-Fi module ($0.60), DC-DC regulator ($0.40), battery harness ($0.50), planetary gearboxes x2 ($0.80). Total sellable per unit: $15.00.',
+  'Estimating costs: Labor — 250 hours for 500 units at $25/hr = $6,250 ($12.50/unit). Logistics — $3.00/unit x 500 = $1,500. Compliance (hazmat handling, data destruction) — $2.00/unit x 500 = $1,000. Warehouse operations — $2.50/unit x 500 = $1,250. Total processing cost: $10,000 ($20.00/unit).',
+  'Computing deal economics: Total recoverable value per unit = $15.00 (parts) + $4.42 (materials) = $19.42. Batch value for 500 units = $9,710. Processing cost = $10,000. In Trading mode, maximum buyout price to break even = $9,710 - $10,000 = -$290 (negative). With a target 15% margin, the deal is unprofitable at any buyout price above $0. Recommendation: proceed with Service Fee mode or negotiate zero-cost acquisition.',
+  'Analysis complete. Generating teardown flow diagram and financial tables...',
 ];
 
 export const aiAnalysisResult = `**Analysis Complete — Roborock S7 (500 units)**
 
-Product identified as Roborock S7 Robot Vacuum (3.7 kg/unit).
+Product: Roborock S7 Robot Vacuum (3.7 kg/unit, 1,850 kg total batch)
+Manufacturer: Beijing Roborock Technology Co. (Xiaomi ecosystem)
 
-Teardown topology generated with **7 major assemblies** and **58 recoverable components** across 4-5 hierarchy levels.
+**Teardown Summary**
+7 major assemblies → 58 recoverable components across 4-5 hierarchy levels.
 
-Key findings:
-• 19 components identified as third-party tradable
-• 28 components recoverable as raw materials
-• 6 components require brand destruction (IP compliance)
-• 5 components non-recyclable (filters, rubber seals, worn consumables)
+**Disposal Classification**
+• 19 third-party tradable (motors, sensors, modules)
+• 28 raw material recoverable (metals, plastics, battery cathode)
+• 6 brand destruction required (branded shells, firmware ICs)
+• 5 non-recyclable (worn filters, rubber, adhesive)
 
-The teardown flow diagram and financial analysis are now available on the right panel.`;
+**Financial Summary**
+• Sellable parts: $15.00/unit ($7,500 batch)
+• Raw materials: $4.42/unit ($2,210 batch)
+• Total recoverable: $19.42/unit ($9,710 batch)
+• Processing cost: $20.00/unit ($10,000 batch)
+
+**Trading Mode Assessment**
+Total recoverable ($9,710) < Processing cost ($10,000). At any buyout price > $0, this deal loses money. **Recommendation: Do not buy.** Consider Service Fee mode instead, where the client pays a processing fee and O2 retains recovered assets.
+
+**Service Fee Mode Assessment**
+Proposed fee: $40.00/unit ($20,000 batch). Net profit: $16,710 (56% margin). ✅ Recommended.
+
+The teardown flow diagram and detailed financial tables are now available on the right panel.`;
 
 // ============================================================
 // TEARDOWN TREE — Deep hierarchical breakdowns (4-5 levels)
@@ -1410,11 +1424,25 @@ export const serviceFeeDealSummary: DealSummaryRow[] = [
 export const tradingDealSummary: DealSummaryRow[] = [
   { item: 'Revenue from Sellable Parts', total: 7500 },
   { item: 'Revenue from Raw Materials', total: 2210 },
-  { item: 'Total Revenue', total: 9710 },
-  { item: 'Total Cost', total: -10000, isNegative: true },
-  { item: 'Buyout Price to Client', total: -3500, isNegative: true },
-  { item: 'Net Position', total: -3790 },
+  { item: 'Total Recoverable Revenue', total: 9710 },
+  { item: 'Total Processing Cost', total: -10000, isNegative: true },
+  { item: 'Net Before Buyout', total: -290, isNegative: true },
+  { item: 'Max Buyout Price (15% margin)', total: 0 },
+  { item: '⚠️ RECOMMENDATION: DO NOT BUY', total: 0 },
 ];
+
+// Smart buyout pricing logic:
+// maxBuyout = totalRevenue - totalCost - (totalRevenue * targetMargin)
+// If maxBuyout <= 0, recommend "Don't Buy" — the deal is unprofitable at any buyout price.
+// For Roborock S7: $9,710 - $10,000 = -$290 (already negative before buyout)
+// → Trading mode is NOT viable. Recommend Service Fee mode instead.
+export const tradingBuyoutRecommendation = {
+  viable: false,
+  maxBuyoutPrice: 0,
+  maxBuyoutPerUnit: 0,
+  reason: 'Total recoverable revenue ($9,710) is less than processing cost ($10,000). Any buyout price would increase the loss. Recommend Service Fee mode instead.',
+  targetMargin: 0.15,
+};
 
 // ============================================================
 // QUOTATION GENERATION STEPS

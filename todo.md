@@ -44,7 +44,7 @@
 
 ## Phase 10: Horizontal Tree Layout + Deeper Teardown
 - [x] Deepen Roborock S7 teardown tree with more sub-component tiers (4-5 levels)
-- [x] Add realistic material breakdowns at leaf level (e.g., motor coil → copper windings, magnets, bearings)
+- [x] Add realistic material breakdowns at leaf level (e.g., motor coil -> copper windings, magnets, bearings)
 - [x] Ensure all disposal classifications are realistic (tradable, raw-material, hazmat, destroy-brand)
 - [x] Rebuild TeardownTree component as horizontal left-to-right layout (Option B)
 - [x] Add expand/collapse with child count badges
@@ -54,3 +54,14 @@
 - [x] Update cost breakdown and deal summaries accordingly
 - [x] Update AI prompt for deeper tree generation (3-4 levels for AI-analyzed products)
 - [x] Run tests and save checkpoint (7 tests passing)
+
+## Phase 11: UX Improvements & Smart Buyout Pricing
+- [x] Center the tree root node vertically in the diagram panel
+- [x] Add rich step-by-step chat analysis (product info, breakdown logic, cost/income reasoning)
+- [x] Make the analysis take a bit of time before diagram appears (progressive reveal)
+- [x] Implement smart buyout pricing: calculate max buyout price for target margin
+- [x] If Trading mode loses money at any buyout price -> recommend "Don't Buy"
+- [x] If profitable -> propose a buyout price that maintains healthy margin
+- [x] Fix quotation number inconsistencies between deal summary and quotation view
+- [x] Update deal summary to show proper buyout pricing logic
+- [x] Test and save checkpoint (7 tests passing)

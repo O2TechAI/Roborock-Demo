@@ -3,11 +3,12 @@
  * 
  * Shows step-by-step processing, then a final quotation summary.
  * Supports both hardcoded default data (Roborock S7) and dynamic AI analysis data.
+ * Includes smart buyout pricing: proposes a price or recommends "Don't Buy".
  */
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, FileText, Loader2, CheckCircle2, Download, Printer } from 'lucide-react';
+import { ArrowLeft, FileText, Loader2, CheckCircle2, Download, Printer, AlertTriangle } from 'lucide-react';
 import { ModeType, quotationSteps } from '@/lib/demoData';
 import type { AnalysisResult } from '@shared/analysisTypes';
 
@@ -44,36 +45,52 @@ export default function QuotationGenerator({ mode, onBack, analysisData }: Quota
   // Derive quotation data from analysisData or defaults
   const qData = useMemo(() => {
     if (!analysisData) {
-      // Default Roborock S7 data
+      // Default Roborock S7 data — consistent with demoData.ts
+      const sellableRevenue = 7500;
+      const rawMaterialRevenue = 2210;
+      const totalRecoverable = 9710;
+      const processingCost = 10000;
+      const serviceFee = 20000;
+      const targetMargin = 0.15;
+
+      // Smart buyout: maxBuyout = totalRecoverable - processingCost - (totalRecoverable * margin)
+      const maxBuyout = totalRecoverable - processingCost - (totalRecoverable * targetMargin);
+      const tradingViable = maxBuyout > 0;
+      const buyoutPrice = tradingViable ? Math.floor(maxBuyout / 100) * 100 : 0;
+
       return {
         product: 'Roborock S7 Robot Vacuum',
         units: 500,
         totalWeight: '1,850 kg',
         recoveryRate: '94.2%',
-        sellableRevenue: 5300,
-        rawMaterialRevenue: 1450,
-        totalRevenueTrd: 6750,
-        totalRevenueSvc: 26750,
-        totalCost: 13000,
-        totalCostTrd: 13500,
-        buyoutPrice: 3500,
-        serviceFee: 20000,
+        sellableRevenue,
+        rawMaterialRevenue,
+        totalRecoverable,
+        processingCost,
+        serviceFee,
         serviceFeePerUnit: 40,
-        buyoutPerUnit: 7,
+        netProfitService: serviceFee + totalRecoverable - (processingCost + 3000), // +3000 for overhead
+        tradingViable,
+        buyoutPrice,
+        buyoutPerUnit: tradingViable ? Math.round(buyoutPrice / 500 * 100) / 100 : 0,
+        netPositionTrading: tradingViable ? totalRecoverable - processingCost - buyoutPrice : totalRecoverable - processingCost,
+        tradingReason: 'Total recoverable revenue ($9,710) is less than processing cost ($10,000). Any buyout price would increase the loss.',
       };
     }
 
-    const sellableRev = analysisData.tradingSellablePartsBatch;
-    const rawRev = analysisData.rawMaterialBatch;
-    const totalCost = analysisData.totalCostBatch;
-    const totalRevenueTrd = sellableRev + rawRev;
-    
-    // Service fee = cost * 1.5 + some margin (aim for ~35% profit margin)
-    const serviceFee = Math.round(totalCost * 1.55 / 100) * 100;
-    const totalRevenueSvc = serviceFee + rawRev;
-    
-    // Buyout price = total recoverable - cost - margin (or a reasonable fraction)
-    const buyoutPrice = Math.max(0, Math.round((totalRevenueTrd - totalCost) * 0.4 / 100) * 100);
+    const sellableRev = analysisData.tradingSellablePartsBatch || 0;
+    const rawRev = analysisData.rawMaterialBatch || 0;
+    const totalRecoverable = sellableRev + rawRev;
+    const processingCost = analysisData.totalCostBatch || 0;
+    const targetMargin = 0.15;
+
+    // Smart buyout pricing
+    const maxBuyout = totalRecoverable - processingCost - (totalRecoverable * targetMargin);
+    const tradingViable = maxBuyout > 0;
+    const buyoutPrice = tradingViable ? Math.floor(maxBuyout / 100) * 100 : 0;
+
+    // Service fee = cost * 2 (aim for ~50% gross margin, ~35% net)
+    const serviceFee = Math.round(processingCost * 2 / 100) * 100;
 
     return {
       product: analysisData.product,
@@ -82,19 +99,18 @@ export default function QuotationGenerator({ mode, onBack, analysisData }: Quota
       recoveryRate: analysisData.recoveryRate,
       sellableRevenue: sellableRev,
       rawMaterialRevenue: rawRev,
-      totalRevenueTrd,
-      totalRevenueSvc,
-      totalCost,
-      totalCostTrd: totalCost + buyoutPrice,
-      buyoutPrice,
+      totalRecoverable,
+      processingCost,
       serviceFee,
       serviceFeePerUnit: Math.round(serviceFee / analysisData.units * 100) / 100,
-      buyoutPerUnit: Math.round(buyoutPrice / analysisData.units * 100) / 100,
+      netProfitService: serviceFee + totalRecoverable - processingCost,
+      tradingViable,
+      buyoutPrice,
+      buyoutPerUnit: tradingViable ? Math.round(buyoutPrice / analysisData.units * 100) / 100 : 0,
+      netPositionTrading: tradingViable ? totalRecoverable - processingCost - buyoutPrice : totalRecoverable - processingCost,
+      tradingReason: tradingViable ? '' : `Total recoverable revenue ($${totalRecoverable.toLocaleString()}) minus processing cost ($${processingCost.toLocaleString()}) leaves insufficient margin for any buyout price.`,
     };
   }, [analysisData]);
-
-  const netProfitSvc = qData.totalRevenueSvc - qData.totalCost;
-  const netPositionTrd = qData.totalRevenueTrd - qData.totalCostTrd;
 
   return (
     <div className="h-full flex flex-col" style={{ backgroundColor: '#ffffff' }}>
@@ -118,7 +134,7 @@ export default function QuotationGenerator({ mode, onBack, analysisData }: Quota
       </div>
 
       {/* Content */}
-      <div className="flex-1 flex items-center justify-center p-8">
+      <div className="flex-1 flex items-center justify-center p-8 overflow-y-auto">
           {!isComplete ? (
             <motion.div
               key="loading"
@@ -156,7 +172,7 @@ export default function QuotationGenerator({ mode, onBack, analysisData }: Quota
               key="complete"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="w-full max-w-lg overflow-y-auto max-h-full"
+              className="w-full max-w-lg"
             >
               {/* Success header */}
               <div className="text-center mb-6">
@@ -211,42 +227,75 @@ export default function QuotationGenerator({ mode, onBack, analysisData }: Quota
                     {isService ? (
                       <>
                         <Row label="Revenue from Service Fee" value={fmt(qData.serviceFee)} />
-                        <Row label="Revenue from Recovered Assets" value={fmt(qData.rawMaterialRevenue)} />
-                        <Row label="Total Revenue" value={fmt(qData.totalRevenueSvc)} bold />
-                        <Row label="Total Cost" value={`(${fmt(qData.totalCost)})`} negative />
+                        <Row label="Revenue from Recovered Assets" value={fmt(qData.totalRecoverable)} />
+                        <Row label="Total Revenue" value={fmt(qData.serviceFee + qData.totalRecoverable)} bold />
+                        <Row label="Total Processing Cost" value={`(${fmt(qData.processingCost)})`} negative />
                         <div className="h-px my-1" style={{ backgroundColor: '#e2e8f0' }} />
-                        <Row label="Total Profit" value={fmt(netProfitSvc)} bold accent={netProfitSvc >= 0 ? accentColor : '#dc2626'} />
+                        <Row label="Net Profit" value={fmt(qData.netProfitService)} bold accent={qData.netProfitService >= 0 ? accentColor : '#dc2626'} />
                       </>
                     ) : (
                       <>
                         <Row label="Revenue from Sellable Parts" value={fmt(qData.sellableRevenue)} />
                         <Row label="Revenue from Raw Materials" value={fmt(qData.rawMaterialRevenue)} />
-                        <Row label="Total Revenue" value={fmt(qData.totalRevenueTrd)} bold />
-                        <Row label="Total Processing Cost" value={`(${fmt(qData.totalCost)})`} negative />
-                        <Row label="Buyout Price to Client" value={`(${fmt(qData.buyoutPrice)})`} negative />
+                        <Row label="Total Recoverable Revenue" value={fmt(qData.totalRecoverable)} bold />
+                        <Row label="Total Processing Cost" value={`(${fmt(qData.processingCost)})`} negative />
+                        {qData.tradingViable && (
+                          <Row label="Buyout Price to Client" value={`(${fmt(qData.buyoutPrice)})`} negative />
+                        )}
                         <div className="h-px my-1" style={{ backgroundColor: '#e2e8f0' }} />
                         <Row
-                          label="Net Position"
-                          value={`${netPositionTrd < 0 ? '-' : ''}${fmt(Math.abs(netPositionTrd))}`}
+                          label={qData.tradingViable ? 'Net Profit' : 'Net Before Buyout'}
+                          value={`${qData.netPositionTrading < 0 ? '-' : ''}${fmt(Math.abs(qData.netPositionTrading))}`}
                           bold
-                          accent={netPositionTrd >= 0 ? accentColor : '#dc2626'}
+                          accent={qData.netPositionTrading >= 0 ? accentColor : '#dc2626'}
                         />
                       </>
                     )}
                   </div>
 
-                  {/* Client-facing price */}
-                  <div className="rounded-lg p-4 text-center" style={{ backgroundColor: isService ? '#eff6ff' : '#f0fdf4', border: `1px solid ${isService ? '#bfdbfe' : '#bbf7d0'}` }}>
-                    <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: '#64748b' }}>
-                      {isService ? 'Proposed Service Fee to Client' : 'Proposed Buyout Price to Client'}
+                  {/* Client-facing price / recommendation */}
+                  {isService ? (
+                    <div className="rounded-lg p-4 text-center" style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe' }}>
+                      <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: '#64748b' }}>
+                        Proposed Service Fee to Client
+                      </div>
+                      <div className="text-[22px] font-bold font-mono" style={{ color: accentColor, fontFamily: "'Space Grotesk', system-ui" }}>
+                        {fmt(qData.serviceFee)}
+                      </div>
+                      <div className="text-[10px] mt-0.5" style={{ color: '#94a3b8' }}>
+                        ${qData.serviceFeePerUnit.toFixed(2)} per unit
+                      </div>
                     </div>
-                    <div className="text-[22px] font-bold font-mono" style={{ color: accentColor, fontFamily: "'Space Grotesk', system-ui" }}>
-                      {isService ? fmt(qData.serviceFee) : fmt(qData.buyoutPrice)}
+                  ) : qData.tradingViable ? (
+                    <div className="rounded-lg p-4 text-center" style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+                      <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: '#64748b' }}>
+                        Proposed Buyout Price to Client
+                      </div>
+                      <div className="text-[22px] font-bold font-mono" style={{ color: '#059669', fontFamily: "'Space Grotesk', system-ui" }}>
+                        {fmt(qData.buyoutPrice)}
+                      </div>
+                      <div className="text-[10px] mt-0.5" style={{ color: '#94a3b8' }}>
+                        ${qData.buyoutPerUnit.toFixed(2)} per unit (15% target margin)
+                      </div>
                     </div>
-                    <div className="text-[10px] mt-0.5" style={{ color: '#94a3b8' }}>
-                      {isService ? `$${qData.serviceFeePerUnit.toFixed(2)} per unit` : `$${qData.buyoutPerUnit.toFixed(2)} per unit`}
+                  ) : (
+                    <div className="rounded-lg p-4 text-center" style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca' }}>
+                      <div className="flex items-center justify-center gap-2 mb-2">
+                        <AlertTriangle className="w-4 h-4" style={{ color: '#dc2626' }} />
+                        <div className="text-[13px] font-bold" style={{ color: '#dc2626', fontFamily: "'Space Grotesk', system-ui" }}>
+                          DO NOT BUY
+                        </div>
+                      </div>
+                      <div className="text-[11px] leading-relaxed mb-3" style={{ color: '#991b1b' }}>
+                        {qData.tradingReason}
+                      </div>
+                      <div className="pt-3" style={{ borderTop: '1px solid #fecaca' }}>
+                        <div className="text-[11px] font-medium" style={{ color: '#065f46' }}>
+                          Recommended: Switch to Service Fee mode (projected profit: {fmt(qData.netProfitService)})
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
 
